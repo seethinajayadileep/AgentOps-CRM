@@ -87,7 +87,8 @@ class SettingsServiceVoiceConfigTest {
 
         assertEquals(ReadinessStatus.DISABLED, response.getStatus());
         assertFalse(response.isEnabled());
-        assertEquals("Vapi disabled", response.getStatusMessage());
+        assertTrue(response.getStatusMessage().contains("disabled"));
+        assertTrue(response.getStatusMessage().contains("VAPI_ENABLED=true"));
     }
 
     @Test
@@ -103,7 +104,8 @@ class SettingsServiceVoiceConfigTest {
         assertFalse(response.isApiKeyConfigured());
         assertFalse(response.isAssistantIdConfigured());
         assertFalse(response.isPhoneNumberIdConfigured());
-        assertEquals("Vapi enabled but configuration incomplete", response.getStatusMessage());
+        assertTrue(response.getStatusMessage().contains("incomplete"));
+        assertTrue(response.getStatusMessage().contains("Missing"));
     }
 
     @Test
@@ -131,7 +133,8 @@ class SettingsServiceVoiceConfigTest {
         assertTrue(response.isAssistantIdConfigured());
         assertTrue(response.isPhoneNumberIdConfigured());
         assertTrue(response.isWebhookSecretConfigured());
-        assertEquals("Vapi configured and enabled", response.getStatusMessage());
+        assertTrue(response.getStatusMessage().contains("configured"));
+        assertTrue(response.getStatusMessage().contains("available"));
     }
 
     @Test
@@ -172,5 +175,60 @@ class SettingsServiceVoiceConfigTest {
         VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
 
         assertEquals(ReadinessStatus.DISABLED, response.getStatus());
+    }
+
+    @Test
+    void getVoiceConfig_whenPlaceholderApiKey_treatedAsNotConfigured() {
+        // Placeholder values like "your_vapi_api_key_here" should be treated as unconfigured
+        setVapiConfig(true, "your_vapi_api_key_here", "your_assistant_id_here", "your_phone_number_uuid_here", "");
+        stubHappyRepositories();
+
+        VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
+
+        assertEquals(ReadinessStatus.NOT_CONFIGURED, response.getStatus());
+        assertFalse(response.isApiKeyConfigured());
+        assertFalse(response.isAssistantIdConfigured());
+        assertFalse(response.isPhoneNumberIdConfigured());
+        assertTrue(response.getStatusMessage().contains("Missing"));
+    }
+
+    @Test
+    void getVoiceConfig_whenPartialPlaceholders_identifiesMissing() {
+        // Real API key but placeholder assistant and phone number
+        setVapiConfig(true, "sk-real-key-123", "your_assistant_id_here", "your_phone_number_uuid_here", "");
+        stubHappyRepositories();
+
+        VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
+
+        assertEquals(ReadinessStatus.NOT_CONFIGURED, response.getStatus());
+        assertTrue(response.isApiKeyConfigured());
+        assertFalse(response.isAssistantIdConfigured());
+        assertFalse(response.isPhoneNumberIdConfigured());
+        assertTrue(response.getStatusMessage().contains("Assistant ID"));
+        assertTrue(response.getStatusMessage().contains("Phone Number ID"));
+    }
+
+    @Test
+    void getVoiceConfig_whenEnabledWithFullConfig_providesHelpfulMessage() {
+        setVapiConfig(true, "sk-test-key", "assistant-123", "phone-456", "webhook-secret");
+        stubHappyRepositories();
+
+        VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
+
+        assertEquals(ReadinessStatus.CONFIGURED, response.getStatus());
+        assertTrue(response.getStatusMessage().contains("configured"));
+        assertTrue(response.getStatusMessage().contains("available"));
+    }
+
+    @Test
+    void getVoiceConfig_whenDisabled_messageExplainsHowToEnable() {
+        setVapiConfig(false, "", "", "", "");
+        stubHappyRepositories();
+
+        VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
+
+        assertEquals(ReadinessStatus.DISABLED, response.getStatus());
+        assertTrue(response.getStatusMessage().contains("disabled"));
+        assertTrue(response.getStatusMessage().contains("VAPI_ENABLED=true"));
     }
 }

@@ -458,10 +458,15 @@ function VoiceTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const loadData = async () => {
+    if (retrying) return; // Prevent duplicate requests
+    
     setLoading(true);
     setError(null);
+    setRetrying(true);
+    
     try {
       const response = await getVoiceConfig();
       setData(response);
@@ -469,6 +474,7 @@ function VoiceTab() {
       setError(err.message || 'Failed to load voice configuration');
     } finally {
       setLoading(false);
+      setRetrying(false);
     }
   };
 
@@ -489,15 +495,101 @@ function VoiceTab() {
   if (error) return <ErrorState message={error} onRetry={loadData} />;
   if (!data) return null;
 
+  // Helper to render state-specific information banner
+  const renderStatusBanner = () => {
+    if (data.status === 'DISABLED') {
+      return (
+        <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-4">
+          <div className="flex items-start">
+            <AlertTriangle size={20} className="mr-3 mt-0.5 text-zinc-400" />
+            <div>
+              <h4 className="font-semibold text-zinc-200">Voice calling is disabled</h4>
+              <p className="mt-1 text-sm text-zinc-400">{data.statusMessage}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (data.status === 'NOT_CONFIGURED') {
+      return (
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4">
+          <div className="flex items-start">
+            <AlertTriangle size={20} className="mr-3 mt-0.5 text-amber-400" />
+            <div>
+              <h4 className="font-semibold text-amber-200">Configuration incomplete</h4>
+              <p className="mt-1 text-sm text-amber-300">{data.statusMessage}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (data.status === 'CONFIGURED' || data.status === 'HEALTHY') {
+      return (
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4">
+          <div className="flex items-start">
+            <CheckCircle size={20} className="mr-3 mt-0.5 text-emerald-400" />
+            <div>
+              <h4 className="font-semibold text-emerald-200">Voice AI is ready</h4>
+              <p className="mt-1 text-sm text-emerald-300">{data.statusMessage}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (data.status === 'DEGRADED') {
+      return (
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4">
+          <div className="flex items-start">
+            <AlertTriangle size={20} className="mr-3 mt-0.5 text-amber-400" />
+            <div>
+              <h4 className="font-semibold text-amber-200">Service degraded</h4>
+              <p className="mt-1 text-sm text-amber-300">{data.statusMessage}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (data.status === 'ERROR') {
+      return (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4">
+          <div className="flex items-start">
+            <XCircle size={20} className="mr-3 mt-0.5 text-red-400" />
+            <div className="flex-1">
+              <h4 className="font-semibold text-red-200">Service error</h4>
+              <p className="mt-1 text-sm text-red-300">{data.statusMessage}</p>
+              <Button 
+                variant="ghost" 
+                onClick={loadData} 
+                disabled={retrying}
+                className="mt-3 text-sm"
+              >
+                <RefreshCw size={14} className="mr-2" />
+                {retrying ? 'Retrying...' : 'Retry'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">Voice AI Configuration</h2>
-        <Button variant="secondary" onClick={loadData}>
+        <Button variant="secondary" onClick={loadData} disabled={retrying}>
           <RefreshCw size={16} className="mr-2" />
           Refresh
         </Button>
       </div>
+
+      {renderStatusBanner()}
 
       <Card className="p-6">
         <div className="mb-4 flex items-center justify-between">
@@ -527,10 +619,6 @@ function VoiceTab() {
             </Button>
           </div>
           {copied && <p className="mt-1 text-xs text-emerald-400">Copied to clipboard!</p>}
-        </div>
-
-        <div className="mt-4 rounded-lg bg-white/[0.02] p-3">
-          <p className="text-sm text-zinc-400">{data.statusMessage}</p>
         </div>
       </Card>
 

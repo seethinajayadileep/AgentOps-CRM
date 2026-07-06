@@ -271,14 +271,43 @@ public class SettingsService {
      */
     public VoiceConfigResponse getVoiceConfig() {
         VoiceConfigResponse response = new VoiceConfigResponse();
+        
+        boolean apiKeyConfigured = isNonBlank(vapiApiKey);
+        boolean assistantIdConfigured = isNonBlank(vapiAssistantId);
+        boolean phoneNumberIdConfigured = isNonBlank(vapiPhoneNumberId);
+        boolean webhookSecretConfigured = isNonBlank(vapiWebhookSecret);
+        
         response.setEnabled(vapiEnabled);
-        response.setApiKeyConfigured(isNonBlank(vapiApiKey));
-        response.setAssistantIdConfigured(isNonBlank(vapiAssistantId));
-        response.setPhoneNumberIdConfigured(isNonBlank(vapiPhoneNumberId));
-        response.setWebhookSecretConfigured(isNonBlank(vapiWebhookSecret));
+        response.setApiKeyConfigured(apiKeyConfigured);
+        response.setAssistantIdConfigured(assistantIdConfigured);
+        response.setPhoneNumberIdConfigured(phoneNumberIdConfigured);
+        response.setWebhookSecretConfigured(webhookSecretConfigured);
         response.setWebhookEndpoint("/api/vapi/webhook");
-        response.setStatus(checkVapiStatus());
-        response.setStatusMessage(getVapiMessage());
+        
+        // Determine status and message based on configuration
+        ReadinessStatus status;
+        String message;
+        
+        if (!vapiEnabled) {
+            status = ReadinessStatus.DISABLED;
+            message = "Voice calling is disabled. Set VAPI_ENABLED=true to enable.";
+        } else if (!apiKeyConfigured || !assistantIdConfigured || !phoneNumberIdConfigured) {
+            status = ReadinessStatus.NOT_CONFIGURED;
+            
+            // Build a helpful message about what's missing
+            List<String> missing = new ArrayList<>();
+            if (!apiKeyConfigured) missing.add("API key");
+            if (!assistantIdConfigured) missing.add("Assistant ID");
+            if (!phoneNumberIdConfigured) missing.add("Phone Number ID");
+            
+            message = "Vapi configuration is incomplete. Missing: " + String.join(", ", missing) + ".";
+        } else {
+            status = ReadinessStatus.CONFIGURED;
+            message = "Vapi is configured. Voice calling is available.";
+        }
+        
+        response.setStatus(status);
+        response.setStatusMessage(message);
 
         // Voice call metrics - never allow a DB/query problem here to turn into
         // a 500 for the whole Voice Settings panel. Vapi may be DISABLED or
@@ -615,7 +644,14 @@ public class SettingsService {
     }
 
     private boolean isNonBlank(String value) {
-        return value != null && !value.trim().isEmpty();
+        if (value == null || value.trim().isEmpty()) {
+            return false;
+        }
+        // Treat placeholder values as unconfigured
+        String trimmed = value.trim();
+        return !trimmed.startsWith("your_") && !trimmed.startsWith("sk-...") && 
+               !trimmed.contains("_here") && !trimmed.equals("...") &&
+               !trimmed.equals("change-in-production");
     }
 
     private String sanitizeErrorMessage(String message) {
