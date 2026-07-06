@@ -1,7 +1,11 @@
 package com.agentopscrm.controller;
 
 import com.agentopscrm.dto.ApiResponse;
+import com.agentopscrm.entity.Business;
 import com.agentopscrm.exception.BusinessNotFoundException;
+import com.agentopscrm.repository.BusinessRepository;
+import com.agentopscrm.repository.DocumentRepository;
+import com.agentopscrm.repository.KnowledgeChunkRepository;
 import com.agentopscrm.service.KnowledgeBaseService;
 import com.agentopscrm.service.RagService;
 import org.springframework.http.ResponseEntity;
@@ -30,10 +34,20 @@ public class RagController {
 
     private final KnowledgeBaseService knowledgeBaseService;
     private final RagService ragService;
+    private final BusinessRepository businessRepository;
+    private final DocumentRepository documentRepository;
+    private final KnowledgeChunkRepository knowledgeChunkRepository;
 
-    public RagController(KnowledgeBaseService knowledgeBaseService, RagService ragService) {
+    public RagController(KnowledgeBaseService knowledgeBaseService, 
+                         RagService ragService,
+                         BusinessRepository businessRepository,
+                         DocumentRepository documentRepository,
+                         KnowledgeChunkRepository knowledgeChunkRepository) {
         this.knowledgeBaseService = knowledgeBaseService;
         this.ragService = ragService;
+        this.businessRepository = businessRepository;
+        this.documentRepository = documentRepository;
+        this.knowledgeChunkRepository = knowledgeChunkRepository;
     }
 
     /**
@@ -139,6 +153,16 @@ public class RagController {
                     .map(this::toItem)
                     .collect(Collectors.toList());
 
+            RagService.RagDiagnostics diag = result.getDiagnostics();
+            DiagnosticsInfo diagnostics = diag != null ? new DiagnosticsInfo(
+                    diag.getDocumentsCount(),
+                    diag.getTotalChunks(),
+                    diag.getLegacyEmbeddedChunks(),
+                    diag.getPgvectorEmbeddedChunks(),
+                    diag.getRetrievalMode(),
+                    diag.getRejectionReasons()
+            ) : null;
+            
             AnswerResponse response = new AnswerResponse(
                     result.getBusinessId(),
                     result.getQuery(),
@@ -146,7 +170,8 @@ public class RagController {
                     result.getSources(),
                     items,
                     result.getTopK(),
-                    result.getStatus());
+                    result.getStatus(),
+                    diagnostics);
 
             return ResponseEntity.ok(ApiResponse.success(response));
 
@@ -275,9 +300,10 @@ public class RagController {
         private final List<RagResultItem> results;
         private final int topK;
         private final String status;
+        private final DiagnosticsInfo diagnostics;
 
         public AnswerResponse(String businessId, String query, String answer, List<String> sources,
-                             List<RagResultItem> results, int topK, String status) {
+                             List<RagResultItem> results, int topK, String status, DiagnosticsInfo diagnostics) {
             this.businessId = businessId;
             this.query = query;
             this.answer = answer;
@@ -285,6 +311,7 @@ public class RagController {
             this.results = results;
             this.topK = topK;
             this.status = status;
+            this.diagnostics = diagnostics;
         }
 
         public String getBusinessId() { return businessId; }
@@ -293,6 +320,104 @@ public class RagController {
         public List<String> getSources() { return sources; }
         public List<RagResultItem> getResults() { return results; }
         public int getTopK() { return topK; }
+        public String getStatus() { return status; }
+        public DiagnosticsInfo getDiagnostics() { return diagnostics; }
+    }
+
+    /** Diagnostics information for RAG operations. */
+    public static class DiagnosticsInfo {
+        private final long documentsCount;
+        private final long totalChunks;
+        private final long legacyEmbeddedChunks;
+        private final long pgvectorEmbeddedChunks;
+        private final String retrievalMode;
+        private final List<String> rejectionReasons;
+
+        public DiagnosticsInfo(long documentsCount, long totalChunks, long legacyEmbeddedChunks,
+                               long pgvectorEmbeddedChunks, String retrievalMode, List<String> rejectionReasons) {
+            this.documentsCount = documentsCount;
+            this.totalChunks = totalChunks;
+            this.legacyEmbeddedChunks = legacyEmbeddedChunks;
+            this.pgvectorEmbeddedChunks = pgvectorEmbeddedChunks;
+            this.retrievalMode = retrievalMode;
+            this.rejectionReasons = rejectionReasons;
+        }
+
+        public long getDocumentsCount() { return documentsCount; }
+        public long getTotalChunks() { return totalChunks; }
+        public long getLegacyEmbeddedChunks() { return legacyEmbeddedChunks; }
+        public long getPgvectorEmbeddedChunks() { return pgvectorEmbeddedChunks; }
+        public String getRetrievalMode() { return retrievalMode; }
+        public List<String> getRejectionReasons() { return rejectionReasons; }
+    }
+
+    /**
+     * Get diagnostics for a business's knowledge base.
+     * GET /api/businesses/{id}/knowledge-base/diagnostics
+     */
+    @GetMapping("/businesses/{id}/knowledge-base/diagnostics")
+    public ResponseEntity<ApiResponse<KnowledgeBaseDiagnostics>> getKnowledgeBaseDiagnostics(@PathVariable UUID id) {
+        try {
+            Business business = businessRepository.findById(id)
+                    .orElseThrow(() -> new BusinessNotFoundException("Business not found: " + id));
+            
+            long totalChunks = knowledgeChunkRepository.countByBusinessId(id);
+            long pgvectorChunks = knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(id);
+            long legacyChunks = totalChunks - pgvectorChunks;
+            long documentsCount = documentRepository.countByBusinessId(id);
+            
+            boolean ready = totalChunks > 0 && pgvectorChunks > 0;
+            String status = totalChunks == 0 ? "NO_CHUNKS" : 
+                           (pgvectorChunks == 0 ? "NO_EMBEDDINGS" : "READY");
+            
+            KnowledgeBaseDiagnostics diagnostics = new KnowledgeBaseDiagnostics(
+                    business.getName(),
+                    documentsCount,
+                    totalChunks,
+                    legacyChunks,
+                    pgvectorChunks,
+                    ready,
+                    status
+            );
+            
+            return ResponseEntity.ok(ApiResponse.success(diagnostics));
+            
+        } catch (BusinessNotFoundException e) {
+            return ResponseEntity.status(404).body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(ApiResponse.error("Failed to retrieve diagnostics: " + e.getMessage()));
+        }
+    }
+
+    /** Knowledge base diagnostics response. */
+    public static class KnowledgeBaseDiagnostics {
+        private final String businessName;
+        private final long documentsCount;
+        private final long totalChunks;
+        private final long legacyEmbeddedChunks;
+        private final long pgvectorEmbeddedChunks;
+        private final boolean ready;
+        private final String status;
+
+        public KnowledgeBaseDiagnostics(String businessName, long documentsCount, long totalChunks,
+                                        long legacyEmbeddedChunks, long pgvectorEmbeddedChunks,
+                                        boolean ready, String status) {
+            this.businessName = businessName;
+            this.documentsCount = documentsCount;
+            this.totalChunks = totalChunks;
+            this.legacyEmbeddedChunks = legacyEmbeddedChunks;
+            this.pgvectorEmbeddedChunks = pgvectorEmbeddedChunks;
+            this.ready = ready;
+            this.status = status;
+        }
+
+        public String getBusinessName() { return businessName; }
+        public long getDocumentsCount() { return documentsCount; }
+        public long getTotalChunks() { return totalChunks; }
+        public long getLegacyEmbeddedChunks() { return legacyEmbeddedChunks; }
+        public long getPgvectorEmbeddedChunks() { return pgvectorEmbeddedChunks; }
+        public boolean isReady() { return ready; }
         public String getStatus() { return status; }
     }
 }

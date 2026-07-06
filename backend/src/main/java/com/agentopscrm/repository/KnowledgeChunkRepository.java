@@ -52,6 +52,28 @@ public interface KnowledgeChunkRepository extends JpaRepository<KnowledgeChunk, 
     );
 
     /**
+     * Find top K similar chunks using pgvector with explicit similarity scores.
+     * Returns both the chunk and the cosine similarity (1 - distance).
+     * 
+     * @param businessId Business ID to filter chunks
+     * @param queryVector Query embedding vector in pgvector format "[0.1,0.2,...]"
+     * @param topK Number of top results to return
+     * @return List of Object arrays where [0] is KnowledgeChunk and [1] is Double similarity
+     */
+    @Query(value = "SELECT kc.*, (1 - (kc.embedding_vector <=> CAST(:queryVector AS vector))) AS similarity " +
+                   "FROM knowledge_chunks kc " +
+                   "WHERE kc.business_id = :businessId " +
+                   "AND kc.embedding_vector IS NOT NULL " +
+                   "ORDER BY kc.embedding_vector <=> CAST(:queryVector AS vector) " +
+                   "LIMIT :topK", 
+           nativeQuery = true)
+    List<Object[]> findTopKSimilarByPgvectorWithSimilarity(
+        @Param("businessId") UUID businessId,
+        @Param("queryVector") String queryVector,
+        @Param("topK") int topK
+    );
+
+    /**
      * Check if pgvector extension is available by attempting to use it.
      * If this query executes without error, pgvector is available.
      * 

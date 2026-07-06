@@ -230,6 +230,21 @@ public class KnowledgeBaseService {
                 entityManager.clear();
             }
 
+            // Validate that we have usable embedded chunks
+            if (chunksCreated > 0 && embeddingsCreated == 0) {
+                String message = "Knowledge base created but no embeddings were generated. " +
+                        "The knowledge base is not ready for semantic search.";
+                auditLogService.logAgentActionWithError(businessId, AGENT_NAME, "BUILD_KB_WARNING",
+                        "{\"businessId\":\"" + businessId + "\",\"documentsProcessed\":" + documents.size() + "}",
+                        "{\"status\":\"NO_EMBEDDINGS\",\"chunksCreated\":" + chunksCreated 
+                                + ",\"embeddingsCreated\":" + embeddingsCreated + ",\"skipped\":" + skipped + "}",
+                        AgentActionStatus.ERROR,
+                        "No embeddings generated",
+                        System.currentTimeMillis() - startTime);
+                return new BuildResult(false, "NO_EMBEDDINGS", message, businessId,
+                        documents.size(), chunksCreated, embeddingsCreated, skipped);
+            }
+
             String message = String.format(
                     "Knowledge base built. %d chunks created, %d embeddings stored, %d duplicates skipped.",
                     chunksCreated, embeddingsCreated, skipped);

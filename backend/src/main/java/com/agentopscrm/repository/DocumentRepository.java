@@ -20,6 +20,8 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
 
     List<Document> findByBusinessIdOrderByCreatedAtDesc(UUID businessId);
 
+    long countByBusinessId(UUID businessId);
+
     boolean existsByUrl(String url);
 
     boolean existsByBusinessIdAndUrl(UUID businessId, String url);

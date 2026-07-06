@@ -1,5 +1,6 @@
 package com.agentopscrm.service;
 
+import com.agentopscrm.entity.Business;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,11 +20,12 @@ import java.util.Map;
  * using the configured AI provider (OpenAI Chat Completions).
  *
  * The prompt strictly instructs the model to answer ONLY from the supplied
- * context and to emit a fixed fallback sentence when the context is insufficient,
- * so the RAG flow does not hallucinate. See {@link RagService} for orchestration.
+ * context (which includes business profile + retrieved chunks) and to emit a 
+ * fixed fallback sentence when the context is insufficient, so the RAG flow 
+ * does not hallucinate. See {@link RagService} for orchestration.
  *
  * @author AgentOps Team
- * @version 0.4.0
+ * @version 1.0.0
  */
 @Service
 public class AnswerService {
@@ -37,15 +39,20 @@ public class AnswerService {
 
     private static final String SYSTEM_PROMPT = """
             You are a helpful assistant that answers questions about ONE specific business
-            using ONLY the provided context excerpts taken from that business's own website.
+            using ONLY the provided context excerpts taken from that business's own website
+            and business profile.
 
             Rules:
             - Use ONLY information present in the context. Do NOT use outside knowledge.
+            - The first context block contains the business profile (name, industry, description, website).
+              Use this to answer broad business-overview questions.
             - Ignore navigation menus, link lists, headers/footers and boilerplate.
             - If the context does not contain enough information to answer the question,
               reply with EXACTLY this sentence and nothing else:
               "%s"
             - Be concise and clear (2-6 sentences). Do not output markdown links or menus.
+            - For "What is this business about?" type questions, use the business profile
+              and any relevant supporting content from the website.
             """.formatted(INSUFFICIENT_CONTEXT_ANSWER);
 
     private final RestTemplate restTemplate;
@@ -66,15 +73,28 @@ public class AnswerService {
     }
 
     /**
-     * Generate a grounded answer.
+     * Generate a grounded answer (legacy overload without Business parameter).
      *
      * @param query          the user's question
      * @param contextExcerpts already-cleaned context strings (each optionally prefixed with its source)
      * @return the model's answer text
      * @throws AnswerException if the provider call fails
      */
-    @SuppressWarnings("unchecked")
     public String generateAnswer(String query, List<String> contextExcerpts) throws AnswerException {
+        return generateAnswer(query, contextExcerpts, null);
+    }
+
+    /**
+     * Generate a grounded answer with business profile.
+     *
+     * @param query          the user's question
+     * @param contextExcerpts already-cleaned context strings (first block is business profile, rest are chunks)
+     * @param business       the business entity (optional, used for logging)
+     * @return the model's answer text
+     * @throws AnswerException if the provider call fails
+     */
+    @SuppressWarnings("unchecked")
+    public String generateAnswer(String query, List<String> contextExcerpts, Business business) throws AnswerException {
         if (!isConfigured()) {
             throw new AnswerException("OPENAI_API_KEY is not configured");
         }
