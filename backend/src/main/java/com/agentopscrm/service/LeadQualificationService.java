@@ -170,11 +170,38 @@ public class LeadQualificationService {
      */
     private Lead createNewLead(Business business, Conversation conversation, 
                                LeadQualificationAgent.LeadExtractionResult extraction) {
-        // Validate minimum required fields
+        // Step 1: Read extracted name/email/phone
         String name = extraction.getName();
         String email = extraction.getEmail();
         String phone = extraction.getPhone();
 
+        // Step 2: Fill missing fields from pending lead fields
+        if (conversation != null) {
+            if (name == null || name.isBlank() || name.equals("Unknown")) {
+                name = conversation.getPendingLeadName();
+            }
+            if (email == null || email.isBlank()) {
+                email = conversation.getPendingLeadEmail();
+            }
+            if (phone == null || phone.isBlank()) {
+                phone = conversation.getPendingLeadPhone();
+            }
+        }
+
+        // Step 3: If still missing, fill from conversation customerName/customerEmail/customerPhone
+        if (conversation != null) {
+            if (name == null || name.isBlank() || name.equals("Unknown")) {
+                name = conversation.getCustomerName();
+            }
+            if (email == null || email.isBlank()) {
+                email = conversation.getCustomerEmail();
+            }
+            if (phone == null || phone.isBlank()) {
+                phone = conversation.getCustomerPhone();
+            }
+        }
+
+        // Step 4: Validate name and contact information
         // Reject if name is Unknown or blank
         if (name == null || name.isBlank() || name.equals("Unknown")) {
             log.warn("Rejecting lead creation: name is '{}' (must not be Unknown or blank)", name);
@@ -185,19 +212,6 @@ public class LeadQualificationService {
         if ((email == null || email.isBlank()) && (phone == null || phone.isBlank())) {
             log.warn("Rejecting lead creation: no contact information (email: {}, phone: {})", email, phone);
             throw new IllegalArgumentException("Cannot create lead without contact information. Email or phone is required.");
-        }
-
-        // If conversation has pending lead data, use it to fill in missing fields
-        if (conversation != null) {
-            if (name == null || name.isBlank()) {
-                name = conversation.getPendingLeadName();
-            }
-            if (email == null || email.isBlank()) {
-                email = conversation.getPendingLeadEmail();
-            }
-            if (phone == null || phone.isBlank()) {
-                phone = conversation.getPendingLeadPhone();
-            }
         }
 
         Lead lead = new Lead();

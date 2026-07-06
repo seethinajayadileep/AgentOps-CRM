@@ -232,4 +232,67 @@ class ConversationSyncTest {
         assertEquals("John Doe", savedConversation.getCustomerName(),
             "Anonymous should be replaced with actual name");
     }
+
+    @Test
+    void qualifyLead_usesConversationContactAsFallback_whenExtractionOmitsIt() throws Exception {
+        // Arrange
+        UUID businessId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+
+        Business business = new Business();
+        business.setId(businessId);
+        business.setName("Test Business");
+        business.setWebsiteUrl("https://test.com");
+        business.setCrawlStatus(CrawlStatus.COMPLETED);
+
+        // Conversation has contact info from previous messages
+        Conversation conversation = new Conversation();
+        conversation.setId(conversationId);
+        conversation.setBusiness(business);
+        conversation.setChannel(Channel.WEB_WIDGET);
+        conversation.setStatus(ConversationStatus.ACTIVE);
+        conversation.setCustomerName("John Doe");
+        conversation.setCustomerEmail("john@example.com");
+        conversation.setCustomerPhone("+1234567890");
+
+        // But extraction doesn't capture them in this message
+        LeadQualificationAgent.LeadExtractionResult extraction = new LeadQualificationAgent.LeadExtractionResult();
+        extraction.setName(null);  // Not extracted
+        extraction.setEmail(null); // Not extracted
+        extraction.setPhone(null); // Not extracted
+        extraction.setRequirementText("I need help with my project");
+        extraction.setUrgency("medium");
+        extraction.setTimeline("WITHIN_1_MONTH");
+
+        LeadQualificationRequest request = new LeadQualificationRequest();
+        request.setBusinessId(businessId);
+        request.setConversationId(conversationId);
+        request.setMessage("I need help with my project");
+
+        when(businessRepository.findById(businessId)).thenReturn(Optional.of(business));
+        when(conversationRepository.findById(conversationId)).thenReturn(Optional.of(conversation));
+        when(leadRepository.findByConversationId(conversationId)).thenReturn(Optional.empty());
+        when(agent.extractLeadInfo(anyString())).thenReturn(extraction);
+        when(leadRepository.save(any(Lead.class))).thenAnswer(inv -> {
+            Lead lead = inv.getArgument(0);
+            lead.setId(UUID.randomUUID());
+            return lead;
+        });
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        // Act
+        service.qualifyLead(request);
+
+        // Assert - Lead should use conversation contact info as fallback
+        ArgumentCaptor<Lead> leadCaptor = ArgumentCaptor.forClass(Lead.class);
+        verify(leadRepository, atLeastOnce()).save(leadCaptor.capture());
+
+        Lead savedLead = leadCaptor.getValue();
+        assertEquals("John Doe", savedLead.getName(),
+            "Should use conversation name when extraction is null");
+        assertEquals("john@example.com", savedLead.getEmail(),
+            "Should use conversation email when extraction is null");
+        assertEquals("+1234567890", savedLead.getPhone(),
+            "Should use conversation phone when extraction is null");
+    }
 }

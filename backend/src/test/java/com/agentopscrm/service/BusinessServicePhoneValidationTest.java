@@ -9,6 +9,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -34,12 +36,20 @@ class BusinessServicePhoneValidationTest {
     @BeforeEach
     void setUp() {
         businessService = new BusinessService(businessRepository, agentLogRepository);
+        
+        // Setup mock to assign UUID to saved businesses
+        when(businessRepository.save(any(Business.class))).thenAnswer(invocation -> {
+            Business business = invocation.getArgument(0);
+            if (business.getId() == null) {
+                business.setId(UUID.randomUUID());
+            }
+            return business;
+        });
     }
 
     @Test
     void createBusiness_withNullPhone_succeeds() {
         when(businessRepository.existsByWebsiteUrl(anyString())).thenReturn(false);
-        when(businessRepository.save(any(Business.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Business result = businessService.createBusiness(
             "Test Business",
@@ -58,7 +68,6 @@ class BusinessServicePhoneValidationTest {
     @Test
     void createBusiness_withEmptyPhone_normalizesToNull() {
         when(businessRepository.existsByWebsiteUrl(anyString())).thenReturn(false);
-        when(businessRepository.save(any(Business.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Business result = businessService.createBusiness(
             "Test Business",
@@ -77,7 +86,6 @@ class BusinessServicePhoneValidationTest {
     @Test
     void createBusiness_withWhitespaceOnlyPhone_normalizesToNull() {
         when(businessRepository.existsByWebsiteUrl(anyString())).thenReturn(false);
-        when(businessRepository.save(any(Business.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Business result = businessService.createBusiness(
             "Test Business",
@@ -96,7 +104,6 @@ class BusinessServicePhoneValidationTest {
     @Test
     void createBusiness_withValidInternationalPhone_succeeds() {
         when(businessRepository.existsByWebsiteUrl(anyString())).thenReturn(false);
-        when(businessRepository.save(any(Business.class))).thenAnswer(inv -> inv.getArgument(0));
 
         String validPhone = "+91 98765 43210";
         Business result = businessService.createBusiness(
@@ -116,7 +123,6 @@ class BusinessServicePhoneValidationTest {
     @Test
     void createBusiness_withValidUSPhone_succeeds() {
         when(businessRepository.existsByWebsiteUrl(anyString())).thenReturn(false);
-        when(businessRepository.save(any(Business.class))).thenAnswer(inv -> inv.getArgument(0));
 
         String validPhone = "+1 (555) 123-4567";
         Business result = businessService.createBusiness(

@@ -29,7 +29,7 @@ import java.util.List;
 @Configuration
 public class CorsConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(CorsConfig.java);
+    private static final Logger log = LoggerFactory.getLogger(CorsConfig.class);
 
     @Value("${cors.allowed-origins:}")
     private String corsAllowedOrigins;

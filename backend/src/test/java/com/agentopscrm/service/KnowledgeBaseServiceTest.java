@@ -38,7 +38,7 @@ class KnowledgeBaseServiceTest {
     @Mock private BusinessRepository businessRepository;
     @Mock private DocumentRepository documentRepository;
     @Mock private KnowledgeChunkRepository knowledgeChunkRepository;
-    @Mock private AgentLogRepository agentLogRepository;
+    @Mock private AuditLogService auditLogService;
     @Mock private ChunkingService chunkingService;
     @Mock private EmbeddingService embeddingService;
     @Mock private VectorStoreService vectorStoreService;
