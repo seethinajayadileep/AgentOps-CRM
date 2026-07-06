@@ -116,16 +116,17 @@ class RagServiceTest {
         UUID chunkA2 = UUID.randomUUID();
         UUID chunkBId = UUID.randomUUID(); // must NEVER appear in results for business A
 
+        // Mock pgvector search
+        KnowledgeChunk c1 = chunk(chunkA1, businessA, "Acme pricing details", "[1,0]", "https://acme.test/pricing", "Pricing");
+        KnowledgeChunk c2 = chunk(chunkA2, businessA, "Acme plans overview", "[1,0]", "https://acme.test/plans", "Plans");
+        
         when(businessRepository.findById(businessAId)).thenReturn(Optional.of(businessA));
+        when(knowledgeChunkRepository.findByBusinessId(businessAId)).thenReturn(List.of(c1, c2));
         when(embeddingService.isConfigured()).thenReturn(true);
         when(embeddingService.generateEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
         when(vectorStoreService.embeddingToVectorString(any())).thenReturn("[1,0]");
         when(knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(businessAId)).thenReturn(2L);
-        when(vectorStoreService.cosineSimilarity(any(), any())).thenReturn(0.9f);
-
-        // Mock pgvector search
-        KnowledgeChunk c1 = chunk(chunkA1, businessA, "Acme pricing details", "[1,0]", "https://acme.test/pricing", "Pricing");
-        KnowledgeChunk c2 = chunk(chunkA2, businessA, "Acme plans overview", "[1,0]", "https://acme.test/plans", "Plans");
+        
         List<Object[]> pgvectorResults = new ArrayList<>();
         pgvectorResults.add(new Object[]{c1, 0.9});
         pgvectorResults.add(new Object[]{c2, 0.85});
@@ -172,17 +173,15 @@ class RagServiceTest {
         String prose = "Acme Corp is a leading provider of innovative technology solutions that help " +
                 "businesses streamline their operations and improve efficiency.";
 
+        KnowledgeChunk c = chunk(UUID.randomUUID(), b, prose, "[1,0]", "https://acme.test/about", "About Us");
+        
         when(businessRepository.findById(businessId)).thenReturn(Optional.of(b));
+        when(knowledgeChunkRepository.findByBusinessId(businessId)).thenReturn(List.of(c));
         when(embeddingService.isConfigured()).thenReturn(true);
         when(embeddingService.generateEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
         when(vectorStoreService.embeddingToVectorString(any())).thenReturn("[1,0]");
-        when(knowledgeChunkRepository.findByBusinessId(businessId)).thenReturn(List.of(
-                chunk(UUID.randomUUID(), b, prose, "[1,0]", "https://acme.test/about", "About Us")
-        ));
         when(knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(businessId)).thenReturn(1L);
-        when(vectorStoreService.cosineSimilarity(any(), any())).thenReturn(0.9f);
         
-        KnowledgeChunk c = chunk(UUID.randomUUID(), b, prose, "[1,0]", "https://acme.test/about", "About Us");
         List<Object[]> pgvectorResults = new ArrayList<>();
         pgvectorResults.add(new Object[]{c, 0.9});
         when(knowledgeChunkRepository.findTopKSimilarByPgvectorWithSimilarity(eq(businessId), anyString(), anyInt()))
@@ -196,7 +195,7 @@ class RagServiceTest {
 
         assertEquals("COMPLETED", result.getStatus());
         assertEquals("Acme Corp provides innovative technology solutions for businesses.", result.getAnswer());
-        assertTrue(result.getSources().contains("https://acme.test/about") || 
+        assertTrue(result.getSources().contains("https://acme.test/about") ||
                    result.getSources().contains("https://acme.test"));
         assertNotNull(result.getDiagnostics());
         verify(answerService).generateAnswer(anyString(), anyList(), any(Business.class));
@@ -208,19 +207,22 @@ class RagServiceTest {
         UUID businessId = UUID.randomUUID();
         Business b = business(businessId);
 
+        KnowledgeChunk c = chunk(UUID.randomUUID(), b, "Navigation menu", "[1,0]", "https://acme.test", null);
+        
         when(businessRepository.findById(businessId)).thenReturn(Optional.of(b));
+        when(knowledgeChunkRepository.findByBusinessId(businessId)).thenReturn(List.of(c));
         when(embeddingService.isConfigured()).thenReturn(true);
         when(embeddingService.generateEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
         when(vectorStoreService.embeddingToVectorString(any())).thenReturn("[1,0]");
-        
-        KnowledgeChunk c = chunk(UUID.randomUUID(), b, "Navigation menu", "[1,0]", "https://acme.test", null);
-        when(knowledgeChunkRepository.findByBusinessId(businessId)).thenReturn(List.of(c));
         when(knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(businessId)).thenReturn(1L);
+        
         List<Object[]> weakResults = new ArrayList<>();
         weakResults.add(new Object[]{c, 0.05});
         when(knowledgeChunkRepository.findTopKSimilarByPgvectorWithSimilarity(eq(businessId), anyString(), anyInt()))
                 .thenReturn(weakResults); // below threshold
         when(answerService.isConfigured()).thenReturn(true);
+        when(answerService.generateAnswer(anyString(), anyList(), any(Business.class)))
+                .thenReturn(AnswerService.INSUFFICIENT_CONTEXT_ANSWER);
 
         RagService.AnswerResult result = ragService.answer(businessId, "unrelated question", 5);
 
@@ -251,10 +253,6 @@ class RagServiceTest {
         Business b = business(businessId);
 
         when(businessRepository.findById(businessId)).thenReturn(Optional.of(b));
-        when(embeddingService.isConfigured()).thenReturn(true);
-        when(embeddingService.generateEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
-        when(vectorStoreService.embeddingToVectorString(any())).thenReturn("[1,0]");
-        when(knowledgeChunkRepository.findByBusinessId(businessId)).thenReturn(List.of());
         when(knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(businessId)).thenReturn(0L);
         when(answerService.isConfigured()).thenReturn(true);
         when(answerService.generateAnswer(anyString(), anyList(), any(Business.class)))
@@ -316,6 +314,7 @@ class RagServiceTest {
         KnowledgeChunk c = chunk(UUID.randomUUID(), b, "content", null, "https://acme.test", "Test");
 
         when(businessRepository.findById(businessId)).thenReturn(Optional.of(b));
+        when(knowledgeChunkRepository.findByBusinessId(businessId)).thenReturn(List.of(c));
         when(embeddingService.isConfigured()).thenReturn(true);
         when(embeddingService.generateEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
         when(vectorStoreService.embeddingToVectorString(any())).thenReturn("[1,0]");
@@ -356,10 +355,6 @@ class RagServiceTest {
         Business b = business(businessId);
 
         when(businessRepository.findById(businessId)).thenReturn(Optional.of(b));
-        when(embeddingService.isConfigured()).thenReturn(true);
-        when(embeddingService.generateEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
-        when(vectorStoreService.embeddingToVectorString(any())).thenReturn("[1,0]");
-        when(knowledgeChunkRepository.findByBusinessId(businessId)).thenReturn(List.of());
         when(knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(businessId)).thenReturn(0L);
         when(knowledgeChunkRepository.countByBusinessId(businessId)).thenReturn(0L);
         when(answerService.isConfigured()).thenReturn(true);
