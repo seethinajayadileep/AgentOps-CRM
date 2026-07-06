@@ -46,9 +46,7 @@ RUN chown -R appuser:appgroup /app
 # Switch to non-root user
 USER appuser
 
-#
-
- Expose port (Railway will override with PORT env var)
+#Expose port (Railway will override with PORT env var)
 EXPOSE 8080
 
 # Health check
