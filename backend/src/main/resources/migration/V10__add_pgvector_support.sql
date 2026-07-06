@@ -38,7 +38,7 @@ END $$;
 -- Using ivfflat index for approximate nearest neighbor search
 -- Lists parameter set to a reasonable value (rows/1000, minimum 10)
 -- This index will be built asynchronously and won't block the table
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_knowledge_chunks_embedding_vector
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding_vector
 ON knowledge_chunks USING ivfflat (embedding_vector vector_cosine_ops)
 WITH (lists = 100);
 

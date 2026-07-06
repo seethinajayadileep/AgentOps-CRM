@@ -39,6 +39,7 @@ spring:
   # Flyway Migrations (enabled by default - use Flyway for schema management)
   flyway:
     enabled: true
+    locations: classpath:migration
     validate-on-migrate: true
     baseline-on-migrate: false
     # V10 requires executeInTransaction=false for CREATE INDEX CONCURRENTLY
