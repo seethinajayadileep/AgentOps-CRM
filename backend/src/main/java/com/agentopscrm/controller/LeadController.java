@@ -177,7 +177,7 @@ public class LeadController {
         response.setBudget(lead.getBudget());
         response.setUrgency(lead.getUrgency());
         response.setTimeline(lead.getTimeline());
-        response.setLeadScore(lead.getLeadScore());
+        response.setLeadScore(lead.getLeadScore() != null ? lead.getLeadScore().doubleValue() : null);
         response.setSummary(lead.getSummary());
         response.setStatus(lead.getStatus());
         response.setCreatedAt(lead.getCreatedAt());

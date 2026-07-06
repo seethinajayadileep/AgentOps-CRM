@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -301,7 +302,7 @@ public class LeadFinderService {
         lead.setEmail(dl.getEmail());
         lead.setPhone(dl.getPhone());
         lead.setRequirementText("Outbound prospect discovered via Apify");
-        lead.setLeadScore(dl.getScore());
+        lead.setLeadScore(dl.getScore() != null ? BigDecimal.valueOf(dl.getScore()) : null);
         lead.setStatus(LeadStatus.NEW);
         StringBuilder summary = new StringBuilder("Outbound lead (source: APIFY).");
         if (dl.getBusinessName() != null) summary.append(" Business: ").append(dl.getBusinessName()).append('.');

@@ -133,7 +133,7 @@ public class LeadQualificationService {
 
             // Calculate lead score
             double score = calculateLeadScore(lead);
-            lead.setLeadScore(score);
+            lead.setLeadScore(BigDecimal.valueOf(score));
 
             // Determine status based on score
             LeadStatus status = determineStatus(score);
@@ -395,7 +395,7 @@ public class LeadQualificationService {
         response.setBudget(extraction.getBudget()); // Return original string
         response.setUrgency(lead.getUrgency());
         response.setTimeline(lead.getTimeline());
-        response.setLeadScore(lead.getLeadScore());
+        response.setLeadScore(lead.getLeadScore() != null ? lead.getLeadScore().doubleValue() : null);
         response.setStatus(lead.getStatus());
         response.setSummary(lead.getSummary());
         return response;

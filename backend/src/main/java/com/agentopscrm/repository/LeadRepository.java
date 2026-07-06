@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,7 +37,7 @@ public interface LeadRepository extends JpaRepository<Lead, UUID> {
     Optional<Lead> findByEmailAndBusiness(@Param("email") String email, @Param("businessId") UUID businessId);
 
     @Query("SELECT l FROM Lead l WHERE l.business.id = :businessId AND l.leadScore >= :minScore ORDER BY l.leadScore DESC")
-    List<Lead> findByBusinessIdAndMinLeadScore(@Param("businessId") UUID businessId, @Param("minScore") Double minScore);
+    List<Lead> findByBusinessIdAndMinLeadScore(@Param("businessId") UUID businessId, @Param("minScore") BigDecimal minScore);
 
     @Query("SELECT l FROM Lead l WHERE l.business.id = :businessId AND l.status IN :statuses")
     Page<Lead> findByBusinessIdAndStatusIn(@Param("businessId") UUID businessId, @Param("statuses") List<LeadStatus> statuses, Pageable pageable);
