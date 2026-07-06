@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+import { apiClient } from './axios';
 
 export interface AskRequest {
   businessId: string;
@@ -46,7 +44,7 @@ export interface ConversationHistoryResponse {
  * Ask a question to the support agent
  */
 export const askQuestion = async (request: AskRequest): Promise<AskResponse> => {
-  const response = await axios.post<AskResponse>(`${API_BASE_URL}/api/chat/ask`, request);
+  const response = await apiClient.post<AskResponse>('/chat/ask', request);
   return response.data;
 };
 
@@ -54,8 +52,8 @@ export const askQuestion = async (request: AskRequest): Promise<AskResponse> => 
  * Get conversation history
  */
 export const getConversationHistory = async (conversationId: string): Promise<ConversationHistoryResponse> => {
-  const response = await axios.get<ConversationHistoryResponse>(
-    `${API_BASE_URL}/api/chat/conversations/${conversationId}/messages`
+  const response = await apiClient.get<ConversationHistoryResponse>(
+    `/chat/conversations/${conversationId}/messages`
   );
   return response.data;
 };

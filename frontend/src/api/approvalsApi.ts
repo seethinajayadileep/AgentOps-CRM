@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { apiClient } from './axios';
 import {
   Approval,
   ApprovalStatus,
@@ -8,8 +8,6 @@ import {
   ApprovalStatusUpdateRequest,
 } from '../types/approval';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-
 /**
  * Generate follow-up messages for a lead
  */
@@ -17,8 +15,8 @@ export const generateFollowUpMessages = async (
   leadId: string,
   request: FollowUpGenerateRequest
 ): Promise<FollowUpGenerateResponse> => {
-  const response = await axios.post<FollowUpGenerateResponse>(
-    `${API_BASE_URL}/api/leads/${leadId}/follow-up/generate`,
+  const response = await apiClient.post<FollowUpGenerateResponse>(
+    `/leads/${leadId}/follow-up/generate`,
     request
   );
   return response.data;
@@ -33,7 +31,7 @@ export const getAllApprovals = async (params?: {
   leadId?: string;
   businessId?: string;
 }): Promise<Approval[]> => {
-  const response = await axios.get<Approval[]>(`${API_BASE_URL}/api/approvals`, {
+  const response = await apiClient.get<Approval[]>('/approvals', {
     params,
   });
   return response.data;
@@ -43,7 +41,7 @@ export const getAllApprovals = async (params?: {
  * Get a single approval by ID
  */
 export const getApprovalById = async (id: string): Promise<Approval> => {
-  const response = await axios.get<Approval>(`${API_BASE_URL}/api/approvals/${id}`);
+  const response = await apiClient.get<Approval>(`/approvals/${id}`);
   return response.data;
 };
 
@@ -51,7 +49,7 @@ export const getApprovalById = async (id: string): Promise<Approval> => {
  * Approve an approval
  */
 export const approveApproval = async (id: string): Promise<Approval> => {
-  const response = await axios.put<Approval>(`${API_BASE_URL}/api/approvals/${id}/approve`);
+  const response = await apiClient.put<Approval>(`/approvals/${id}/approve`);
   return response.data;
 };
 
@@ -59,7 +57,7 @@ export const approveApproval = async (id: string): Promise<Approval> => {
  * Reject an approval
  */
 export const rejectApproval = async (id: string): Promise<Approval> => {
-  const response = await axios.put<Approval>(`${API_BASE_URL}/api/approvals/${id}/reject`);
+  const response = await apiClient.put<Approval>(`/approvals/${id}/reject`);
   return response.data;
 };
 
@@ -70,8 +68,8 @@ export const updateApprovalStatus = async (
   id: string,
   request: ApprovalStatusUpdateRequest
 ): Promise<Approval> => {
-  const response = await axios.put<Approval>(
-    `${API_BASE_URL}/api/approvals/${id}/status`,
+  const response = await apiClient.put<Approval>(
+    `/approvals/${id}/status`,
     request
   );
   return response.data;

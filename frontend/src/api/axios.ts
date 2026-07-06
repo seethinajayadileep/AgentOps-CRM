@@ -1,12 +1,23 @@
 import axios from 'axios';
 
 /**
- * Axios instance configuration.
- *
- * @version 0.1.0
+ * Centralized Axios client configuration.
+ * All API modules must use this client to ensure consistent baseURL handling.
+ * 
+ * Production deployment: VITE_API_BASE_URL must be set in Vercel.
+ * Example: https://upbeat-blessing-production-0f39.up.railway.app/api
+ * 
+ * @version 0.2.0
  */
+
+const rawBaseUrl =
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
+// Remove trailing slashes to avoid double-slashing
+const baseURL = rawBaseUrl.replace(/\/+$/, '');
+
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',

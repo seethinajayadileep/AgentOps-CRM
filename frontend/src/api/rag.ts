@@ -1,6 +1,4 @@
-import axios from './axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { apiClient } from './axios';
 
 export interface BuildResponse {
   businessId: string;
@@ -53,23 +51,23 @@ export interface ApiResponse<T> {
 
 export const ragApi = {
   async buildKnowledgeBase(id: string): Promise<ApiResponse<BuildResponse>> {
-    const response = await axios.post<ApiResponse<BuildResponse>>(
-      `${API_BASE_URL}/businesses/${id}/knowledge-base/build`
+    const response = await apiClient.post<ApiResponse<BuildResponse>>(
+      `/businesses/${id}/knowledge-base/build`
     );
     return response.data;
   },
 
   async searchKnowledgeBase(request: SearchRequest): Promise<ApiResponse<SearchResponse>> {
-    const response = await axios.post<ApiResponse<SearchResponse>>(
-      `${API_BASE_URL}/rag/search`,
+    const response = await apiClient.post<ApiResponse<SearchResponse>>(
+      '/rag/search',
       request
     );
     return response.data;
   },
 
   async answer(request: SearchRequest): Promise<ApiResponse<AnswerResponse>> {
-    const response = await axios.post<ApiResponse<AnswerResponse>>(
-      `${API_BASE_URL}/rag/answer`,
+    const response = await apiClient.post<ApiResponse<AnswerResponse>>(
+      '/rag/answer',
       request
     );
     return response.data;

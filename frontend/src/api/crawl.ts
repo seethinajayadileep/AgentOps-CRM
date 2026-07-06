@@ -1,10 +1,12 @@
-import axios from './axios';
+import { apiClient } from './axios';
+import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Get the base URL from the centralized apiClient
+const baseURL = apiClient.defaults.baseURL || '/api';
 
 // Create a client with longer timeout for crawl operations
 const crawlClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL,
   timeout: 300000, // 5 minutes for crawl operations
   headers: {
     'Content-Type': 'application/json',

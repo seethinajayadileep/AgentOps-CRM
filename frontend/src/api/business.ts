@@ -1,4 +1,4 @@
-import axios from './axios';
+import { apiClient } from './axios';
 import type {
   ApiResponse,
   Business,
@@ -7,8 +7,6 @@ import type {
   PaginatedResponse,
 } from '../types/index';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-
 export const businessApi = {
   async getAllBusinesses(params?: {
     page?: number;
@@ -16,16 +14,16 @@ export const businessApi = {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }): Promise<ApiResponse<PaginatedResponse<Business>>> {
-    const response = await axios.get<ApiResponse<PaginatedResponse<Business>>>(
-      `${API_BASE_URL}/businesses`,
+    const response = await apiClient.get<ApiResponse<PaginatedResponse<Business>>>(
+      '/businesses',
       { params }
     );
     return response.data;
   },
 
   async getBusinessById(id: string): Promise<ApiResponse<Business>> {
-    const response = await axios.get<ApiResponse<Business>>(
-      `${API_BASE_URL}/businesses/${id}`
+    const response = await apiClient.get<ApiResponse<Business>>(
+      `/businesses/${id}`
     );
     return response.data;
   },
@@ -33,8 +31,8 @@ export const businessApi = {
   async createBusiness(
     data: CreateBusinessRequest
   ): Promise<ApiResponse<Business>> {
-    const response = await axios.post<ApiResponse<Business>>(
-      `${API_BASE_URL}/businesses`,
+    const response = await apiClient.post<ApiResponse<Business>>(
+      '/businesses',
       data
     );
     return response.data;
@@ -44,16 +42,16 @@ export const businessApi = {
     id: string,
     data: UpdateBusinessRequest
   ): Promise<ApiResponse<Business>> {
-    const response = await axios.put<ApiResponse<Business>>(
-      `${API_BASE_URL}/businesses/${id}`,
+    const response = await apiClient.put<ApiResponse<Business>>(
+      `/businesses/${id}`,
       data
     );
     return response.data;
   },
 
   async deleteBusiness(id: string): Promise<ApiResponse<void>> {
-    const response = await axios.delete<ApiResponse<void>>(
-      `${API_BASE_URL}/businesses/${id}`
+    const response = await apiClient.delete<ApiResponse<void>>(
+      `/businesses/${id}`
     );
     return response.data;
   },
@@ -62,8 +60,8 @@ export const businessApi = {
     page?: number;
     size?: number;
   }): Promise<ApiResponse<PaginatedResponse<Business>>> {
-    const response = await axios.get<ApiResponse<PaginatedResponse<Business>>>(
-      `${API_BASE_URL}/businesses/search`,
+    const response = await apiClient.get<ApiResponse<PaginatedResponse<Business>>>(
+      '/businesses/search',
       {
         params: { term, ...params },
       }
@@ -75,8 +73,8 @@ export const businessApi = {
     _status: string,
     params?: { page?: number; size?: number }
   ): Promise<ApiResponse<PaginatedResponse<Business>>> {
-    const response = await axios.get<ApiResponse<PaginatedResponse<Business>>>(
-      `${API_BASE_URL}/businesses/crawl-status/\${status}`,
+    const response = await apiClient.get<ApiResponse<PaginatedResponse<Business>>>(
+      '/businesses/crawl-status/\${status}',
       { params }
     );
     return response.data;
