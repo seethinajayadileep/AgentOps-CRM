@@ -4,6 +4,8 @@ import com.agentopscrm.entity.Lead;
 import com.agentopscrm.entity.enums.LeadStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,6 +25,18 @@ import java.util.UUID;
 @Repository
 public interface LeadRepository extends JpaRepository<Lead, UUID> {
 
+    // Override findAll with EntityGraph to eagerly fetch business and conversation
+    @Override
+    @EntityGraph(attributePaths = {"business", "conversation"})
+    List<Lead> findAll(Sort sort);
+
+    // Override findById with EntityGraph to eagerly fetch business and conversation
+    @Override
+    @EntityGraph(attributePaths = {"business", "conversation"})
+    Optional<Lead> findById(UUID id);
+
+    // Add EntityGraph to findByBusinessId for eager fetching
+    @EntityGraph(attributePaths = {"business", "conversation"})
     List<Lead> findByBusinessId(UUID businessId);
 
     Page<Lead> findByBusinessId(UUID businessId, Pageable pageable);
