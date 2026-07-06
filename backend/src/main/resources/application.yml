@@ -1,0 +1,147 @@
+# AgentOps CRM - Spring Boot Configuration
+
+spring:
+  application:
+    name: agentops-crm
+
+  # Profiles - NO DEFAULT (must be set via SPRING_PROFILES_ACTIVE environment variable)
+  # profiles:
+  #   active: MUST_SET_VIA_ENVIRONMENT
+
+  # Database Configuration (PostgreSQL)
+  # SECURITY: Use environment variables for all connection details
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5433/agentops_crm}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN:2}
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # JPA Configuration (safe defaults - profiles override)
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+        default_schema: public
+    open-in-view: false
+
+  # Flyway Migrations (enabled by default - use Flyway for schema management)
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: false
+    # V10 requires executeInTransaction=false for CREATE INDEX CONCURRENTLY
+    # Flyway will automatically detect this from the SQL comment header
+    mixed: false
+
+  # Redis Configuration (Optional - not currently used by application)
+  # Configuration present for future use, but Redis is not required
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 60000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+  # JSON Serialization
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+    default-property-inclusion: non_null
+
+# Firecrawl Configuration
+# SECURITY: key must be supplied via the FIRECRAWL_API_KEY environment variable.
+# (The previously hardcoded key was removed and should be rotated.)
+firecrawl:
+  api-key: ${FIRECRAWL_API_KEY:}
+
+# OpenAI Configuration
+openai:
+  api-key: ${OPENAI_API_KEY:}
+
+# Apify Lead Finder Configuration (F-010)
+# SECURITY: token must be supplied via the APIFY_API_TOKEN environment variable.
+# The app starts fine when disabled or when the token is missing; API calls then
+# return a clean "Apify is not configured." message.
+apify:
+  api-token: ${APIFY_API_TOKEN:}
+  enabled: ${APIFY_ENABLED:false}
+  default-actor-id: ${APIFY_DEFAULT_ACTOR_ID:}
+
+# Vapi Configuration (F-008)
+vapi:
+  api-key: ${VAPI_API_KEY:}
+  assistant-id: ${VAPI_ASSISTANT_ID:}
+  phone-number-id: ${VAPI_PHONE_NUMBER_ID:}
+  webhook-secret: ${VAPI_WEBHOOK_SECRET:}
+  enabled: ${VAPI_ENABLED:false}
+
+# RAG / Knowledge Base Configuration (F-004)
+rag:
+  embedding:
+    provider: openai
+    model: text-embedding-3-small
+    dimension: 1536
+  search:
+    default-top-k: 5
+    max-top-k: 50
+  # Vector storage strategy: "pgvector" for native PostgreSQL vector similarity search
+  # with vector(1536) column and database-side cosine similarity.
+  # Legacy "postgres-text" fallback is available but pgvector is production-ready.
+  vector-store: pgvector
+
+# Server Configuration
+# Railway provides PORT environment variable - use it or default to 8080
+server:
+  port: ${PORT:8080}
+  address: 0.0.0.0
+  servlet:
+    context-path: /
+  shutdown: graceful
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    db:
+      enabled: true
+    redis:
+      enabled: ${REDIS_HEALTH_ENABLED:false}
+
+# Logging Configuration (safe defaults - profile-specific overrides)
+logging:
+  level:
+    root: INFO
+    com.agentopscrm: INFO
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'

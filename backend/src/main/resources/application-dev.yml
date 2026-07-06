@@ -1,0 +1,41 @@
+# AgentOps CRM - Development Environment Configuration
+# Activate with: SPRING_PROFILES_ACTIVE=dev
+
+spring:
+  # Override development-specific settings here
+
+  # Database (use localhost for dev)
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5433/agentops_crm}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  # JPA - Use validate mode with Flyway managing the schema
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: true
+
+  # Flyway - enabled for dev with baseline for existing databases
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: true
+    out-of-order: false
+
+# Logging - Debug level for development
+logging:
+  level:
+    root: INFO
+    com.agentopscrm: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.data.jpa: DEBUG

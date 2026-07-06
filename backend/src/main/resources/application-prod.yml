@@ -1,0 +1,85 @@
+# AgentOps CRM - Production Environment Configuration
+# Activate with: SPRING_PROFILES_ACTIVE=prod
+
+spring:
+  # Override production-specific settings here
+
+  # Database (use Railway environment variables)  
+  # Railway provides: PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD
+# Or use custom: DB_URL, DB_USER, DB_PASSWORD
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      # Railway Starter: 5 max connections for small instance
+      maximum-pool-size: ${DB_POOL_MAX:5}
+      minimum-idle: ${DB_POOL_MIN:1}
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+
+  # Redis (optional - only configure if Redis service is provisioned)
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl: ${REDIS_SSL:false}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+
+  # JPA - Validate only, Flyway manages schema
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 50
+          time_zone: UTC
+        order_inserts: true
+        order_updates: true
+        default_schema: public
+
+  # Flyway - enabled for production, NO baseline-on-migrate for fresh DB
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: false
+    out-of-order: false
+    # Railway should start with empty DB - migrations run from V1
+
+# Logging - INFO level for production, no SQL logging
+logging:
+  level:
+    root: INFO
+    com.agentopscrm: INFO
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql: WARN
+
+# Actuator - Restricted access in production
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  health:
+    redis:
+      enabled: ${REDIS_HEALTH_ENABLED:false}
+
+# CORS Configuration (production)
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:}
