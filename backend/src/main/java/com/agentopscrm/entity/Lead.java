@@ -65,8 +65,8 @@ public class Lead extends AuditableEntity {
     @Column(name = "timeline", length = 50)
     private String timeline;
 
-    @Column(name = "lead_score")
-    private Double leadScore;
+    @Column(name = "lead_score", precision = 5, scale = 2)
+    private BigDecimal leadScore;
 
     @Column(name = "summary", columnDefinition = "TEXT")
     private String summary;
@@ -162,11 +162,11 @@ public class Lead extends AuditableEntity {
         this.timeline = timeline;
     }
 
-    public Double getLeadScore() {
+    public BigDecimal getLeadScore() {
         return leadScore;
     }
 
-    public void setLeadScore(Double leadScore) {
+    public void setLeadScore(BigDecimal leadScore) {
         this.leadScore = leadScore;
     }
 
