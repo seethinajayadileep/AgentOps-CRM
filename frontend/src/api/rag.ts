@@ -49,10 +49,62 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
+/**
+ * Status of an asynchronous knowledge-base build job (Bug 2 fix).
+ * Mirrors backend KnowledgeBaseJobStatus.
+ */
+export type KnowledgeBaseJobStatus =
+  | 'QUEUED'
+  | 'CRAWLING'
+  | 'CHUNKING'
+  | 'EMBEDDING'
+  | 'COMPLETED'
+  | 'PARTIAL'
+  | 'FAILED';
+
+export interface KnowledgeBaseJob {
+  jobId: string;
+  businessId: string;
+  status: KnowledgeBaseJobStatus;
+  progressPercentage: number;
+  documentsTotal: number;
+  documentsProcessed: number;
+  chunksCreated: number;
+  embeddingsCreated: number;
+  errorMessage?: string | null;
+  startedAt: string;
+  updatedAt: string;
+  completedAt?: string | null;
+}
+
+/** Terminal (non-active) knowledge-base job statuses. */
+export const KB_JOB_TERMINAL_STATUSES: KnowledgeBaseJobStatus[] = ['COMPLETED', 'PARTIAL', 'FAILED'];
+
 export const ragApi = {
-  async buildKnowledgeBase(id: string): Promise<ApiResponse<BuildResponse>> {
-    const response = await apiClient.post<ApiResponse<BuildResponse>>(
+  /**
+   * Start an asynchronous knowledge-base build job. The backend responds
+   * immediately (202 Accepted) with a QUEUED job - callers must poll
+   * {@link getKnowledgeBaseJob} for progress rather than waiting on this call.
+   */
+  async buildKnowledgeBase(id: string): Promise<ApiResponse<KnowledgeBaseJob>> {
+    const response = await apiClient.post<ApiResponse<KnowledgeBaseJob>>(
       `/businesses/${id}/knowledge-base/build`
+    );
+    return response.data;
+  },
+
+  /** Poll the status/progress of a knowledge-base build job. */
+  async getKnowledgeBaseJob(businessId: string, jobId: string): Promise<ApiResponse<KnowledgeBaseJob>> {
+    const response = await apiClient.get<ApiResponse<KnowledgeBaseJob>>(
+      `/businesses/${businessId}/knowledge-base/jobs/${jobId}`
+    );
+    return response.data;
+  },
+
+  /** Restore the active (in-progress) build job for a business, if any. */
+  async getActiveKnowledgeBaseJob(businessId: string): Promise<ApiResponse<KnowledgeBaseJob | null>> {
+    const response = await apiClient.get<ApiResponse<KnowledgeBaseJob | null>>(
+      `/businesses/${businessId}/knowledge-base/jobs/active`
     );
     return response.data;
   },

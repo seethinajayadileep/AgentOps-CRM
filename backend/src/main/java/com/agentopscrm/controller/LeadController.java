@@ -5,13 +5,12 @@ import com.agentopscrm.dto.LeadQualificationResponse;
 import com.agentopscrm.dto.LeadResponse;
 import com.agentopscrm.dto.LeadStatusUpdateRequest;
 import com.agentopscrm.entity.Lead;
-import com.agentopscrm.entity.enums.LeadStatus;
-import com.agentopscrm.repository.LeadRepository;
+import com.agentopscrm.exception.LeadNotFoundException;
 import com.agentopscrm.service.LeadQualificationService;
+import com.agentopscrm.service.LeadService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,7 +23,7 @@ import java.util.stream.Collectors;
  * REST controller for lead management and qualification.
  *
  * @author AgentOps Team
- * @version 0.6.0
+ * @version 0.7.0
  */
 @RestController
 @RequestMapping("/api/leads")
@@ -34,12 +33,12 @@ public class LeadController {
     private static final Logger log = LoggerFactory.getLogger(LeadController.class);
 
     private final LeadQualificationService qualificationService;
-    private final LeadRepository leadRepository;
+    private final LeadService leadService;
 
-    public LeadController(LeadQualificationService qualificationService, 
-                         LeadRepository leadRepository) {
+    public LeadController(LeadQualificationService qualificationService,
+                         LeadService leadService) {
         this.qualificationService = qualificationService;
-        this.leadRepository = leadRepository;
+        this.leadService = leadService;
     }
 
     /**
@@ -60,9 +59,6 @@ public class LeadController {
         } catch (IllegalArgumentException e) {
             log.error("Validation error: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
-        } catch (Exception e) {
-            log.error("Failed to qualify lead", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
@@ -73,18 +69,13 @@ public class LeadController {
     public ResponseEntity<List<LeadResponse>> getAllLeads() {
         log.info("GET /api/leads - fetching all leads");
 
-        try {
-            List<Lead> leads = leadRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
-            List<LeadResponse> responses = leads.stream()
-                    .map(this::toResponse)
-                    .collect(Collectors.toList());
-            
-            log.info("Found {} leads", responses.size());
-            return ResponseEntity.ok(responses);
-        } catch (Exception e) {
-            log.error("Failed to fetch leads", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        List<Lead> leads = leadService.getAllLeads();
+        List<LeadResponse> responses = leads.stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+
+        log.info("Found {} leads", responses.size());
+        return ResponseEntity.ok(responses);
     }
 
     /**
@@ -94,24 +85,20 @@ public class LeadController {
     public ResponseEntity<LeadResponse> getLeadById(@PathVariable UUID id) {
         log.info("GET /api/leads/{} - fetching lead", id);
 
-        try {
-            Lead lead = leadRepository.findById(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Lead not found"));
-            
-            LeadResponse response = toResponse(lead);
-            log.info("Found lead: {}", lead.getId());
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            log.error("Lead not found: {}", id);
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Failed to fetch lead", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        Lead lead = leadService.getLeadById(id);
+        LeadResponse response = toResponse(lead);
+        log.info("Found lead: {}", lead.getId());
+        return ResponseEntity.ok(response);
     }
 
     /**
      * PUT /api/leads/{id}/status - Update lead status.
+     *
+     * Delegates to the transactional {@link LeadService#updateStatus} which
+     * reloads the saved entity with business/conversation initialized
+     * before this controller maps it to a response DTO. This prevents the
+     * LazyInitializationException previously observed when the merged
+     * entity returned from save() held uninitialized lazy proxies.
      */
     @PutMapping("/{id}/status")
     public ResponseEntity<LeadResponse> updateLeadStatus(
@@ -120,24 +107,11 @@ public class LeadController {
         
         log.info("PUT /api/leads/{}/status - updating to {}", id, request.getStatus());
 
-        try {
-            Lead lead = leadRepository.findById(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Lead not found"));
-            
-            lead.setStatus(request.getStatus());
-            lead = leadRepository.save(lead);
-
-            LeadResponse response = toResponse(lead);
-            log.info("Lead status updated successfully - leadId: {}, status: {}", 
-                    lead.getId(), lead.getStatus());
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            log.error("Lead not found: {}", id);
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("Failed to update lead status", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        Lead lead = leadService.updateStatus(id, request.getStatus());
+        LeadResponse response = toResponse(lead);
+        log.info("Lead status updated successfully - leadId: {}, status: {}", 
+                lead.getId(), lead.getStatus());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -147,18 +121,13 @@ public class LeadController {
     public ResponseEntity<List<LeadResponse>> getLeadsByBusiness(@PathVariable UUID businessId) {
         log.info("GET /api/leads/business/{} - fetching leads for business", businessId);
 
-        try {
-            List<Lead> leads = leadRepository.findByBusinessId(businessId);
-            List<LeadResponse> responses = leads.stream()
-                    .map(this::toResponse)
-                    .collect(Collectors.toList());
-            
-            log.info("Found {} leads for business {}", responses.size(), businessId);
-            return ResponseEntity.ok(responses);
-        } catch (Exception e) {
-            log.error("Failed to fetch leads for business", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        List<Lead> leads = leadService.getLeadsByBusiness(businessId);
+        List<LeadResponse> responses = leads.stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+
+        log.info("Found {} leads for business {}", responses.size(), businessId);
+        return ResponseEntity.ok(responses);
     }
 
     /**

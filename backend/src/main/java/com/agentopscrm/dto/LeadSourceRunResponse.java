@@ -20,11 +20,14 @@ public class LeadSourceRunResponse {
     private String keywords;
     private String actorId;
     private String apifyRunId;
+    private String apifyDatasetId;
     private Integer maxResults;
     private LeadSourceRunStatus status;
     private Integer totalResults;
     private Integer importedCount;
     private String failureReason;
+    private String failureCode;
+    private LocalDateTime lastSyncedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -87,6 +90,14 @@ public class LeadSourceRunResponse {
         this.apifyRunId = apifyRunId;
     }
 
+    public String getApifyDatasetId() {
+        return apifyDatasetId;
+    }
+
+    public void setApifyDatasetId(String apifyDatasetId) {
+        this.apifyDatasetId = apifyDatasetId;
+    }
+
     public Integer getMaxResults() {
         return maxResults;
     }
@@ -125,6 +136,22 @@ public class LeadSourceRunResponse {
 
     public void setFailureReason(String failureReason) {
         this.failureReason = failureReason;
+    }
+
+    public String getFailureCode() {
+        return failureCode;
+    }
+
+    public void setFailureCode(String failureCode) {
+        this.failureCode = failureCode;
+    }
+
+    public LocalDateTime getLastSyncedAt() {
+        return lastSyncedAt;
+    }
+
+    public void setLastSyncedAt(LocalDateTime lastSyncedAt) {
+        this.lastSyncedAt = lastSyncedAt;
     }
 
     public LocalDateTime getCreatedAt() {

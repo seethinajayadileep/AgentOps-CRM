@@ -1,49 +1,67 @@
 package com.agentopscrm.controller;
 
 import com.agentopscrm.dto.ApiResponse;
+import com.agentopscrm.dto.KnowledgeBaseJobResponse;
 import com.agentopscrm.entity.Business;
 import com.agentopscrm.exception.BusinessNotFoundException;
 import com.agentopscrm.repository.BusinessRepository;
 import com.agentopscrm.repository.DocumentRepository;
 import com.agentopscrm.repository.KnowledgeChunkRepository;
+import com.agentopscrm.service.KnowledgeBaseJobService;
 import com.agentopscrm.service.KnowledgeBaseService;
 import com.agentopscrm.service.RagService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Controller for Knowledge Base build + RAG search operations (F-004).
+ * Controller for Knowledge Base build + RAG search operations (F-004, Bug 2 fix).
  *
  * Endpoints:
- *  - POST /api/businesses/{id}/knowledge-base/build
+ *  - POST /api/businesses/{id}/knowledge-base/build (202 Accepted - async job)
+ *  - GET  /api/businesses/{id}/knowledge-base/jobs/{jobId}
+ *  - GET  /api/businesses/{id}/knowledge-base/jobs/active
  *  - POST /api/rag/search
  *
  * Business isolation is enforced in the service/repository layer; the businessId
  * from the request is only ever used to scope queries, never to bypass them.
  *
+ * Bug 2 fix: the build endpoint used to run synchronously and could exceed
+ * frontend/proxy timeouts even though the backend eventually completed the
+ * work. It now enqueues a background job and returns immediately; clients
+ * poll the job status endpoint for real progress.
+ *
  * @author AgentOps Team
- * @version 0.3.0
+ * @version 0.4.0
  */
 @RestController
 @RequestMapping("/api")
 public class RagController {
 
+    private static final Logger log = LoggerFactory.getLogger(RagController.class);
+
     private final KnowledgeBaseService knowledgeBaseService;
+    private final KnowledgeBaseJobService knowledgeBaseJobService;
     private final RagService ragService;
     private final BusinessRepository businessRepository;
     private final DocumentRepository documentRepository;
     private final KnowledgeChunkRepository knowledgeChunkRepository;
 
-    public RagController(KnowledgeBaseService knowledgeBaseService, 
+    public RagController(KnowledgeBaseService knowledgeBaseService,
+                         KnowledgeBaseJobService knowledgeBaseJobService,
                          RagService ragService,
                          BusinessRepository businessRepository,
                          DocumentRepository documentRepository,
                          KnowledgeChunkRepository knowledgeChunkRepository) {
         this.knowledgeBaseService = knowledgeBaseService;
+        this.knowledgeBaseJobService = knowledgeBaseJobService;
         this.ragService = ragService;
         this.businessRepository = businessRepository;
         this.documentRepository = documentRepository;
@@ -51,35 +69,66 @@ public class RagController {
     }
 
     /**
-     * Build the knowledge base for a business.
+     * Start an asynchronous knowledge-base build for a business.
      * POST /api/businesses/{id}/knowledge-base/build
+     *
+     * Always returns 202 Accepted immediately (never blocks on the actual
+     * crawl/chunk/embed work) with the job id, businessId, status and
+     * startedAt timestamp. Duplicate active builds for the same business are
+     * prevented - the existing in-flight job is returned instead of starting
+     * a new one.
      */
     @PostMapping("/businesses/{id}/knowledge-base/build")
-    public ResponseEntity<ApiResponse<BuildResponse>> buildKnowledgeBase(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<KnowledgeBaseJobResponse>> buildKnowledgeBase(@PathVariable UUID id) {
         try {
-            KnowledgeBaseService.BuildResult result = knowledgeBaseService.buildKnowledgeBase(id);
-
-            BuildResponse response = new BuildResponse(
-                    result.getBusinessId() != null ? result.getBusinessId().toString() : id.toString(),
-                    result.isSuccess(),
-                    result.getStatus(),
-                    result.getDocumentsProcessed(),
-                    result.getChunksCreated(),
-                    result.getEmbeddingsCreated(),
-                    result.getSkipped(),
-                    result.getMessage());
-
-            if (!result.isSuccess()) {
-                // Configuration / provider failures are surfaced as a 500 with a clean body.
-                return ResponseEntity.status(500).body(ApiResponse.error(result.getMessage()));
-            }
-            return ResponseEntity.ok(ApiResponse.success(response, result.getMessage()));
-
+            KnowledgeBaseJobResponse job = knowledgeBaseJobService.startBuild(id);
+            return ResponseEntity.status(HttpStatus.ACCEPTED)
+                    .body(ApiResponse.success(job, "Knowledge base build job accepted"));
         } catch (BusinessNotFoundException e) {
             return ResponseEntity.status(404).body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
+            log.error("Failed to start knowledge base build job for business {}", id, e);
             return ResponseEntity.status(500)
-                    .body(ApiResponse.error("Failed to build knowledge base: " + e.getMessage()));
+                    .body(ApiResponse.error("Failed to start knowledge base build: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Poll the status/progress of a knowledge-base build job.
+     * GET /api/businesses/{businessId}/knowledge-base/jobs/{jobId}
+     */
+    @GetMapping("/businesses/{businessId}/knowledge-base/jobs/{jobId}")
+    public ResponseEntity<ApiResponse<KnowledgeBaseJobResponse>> getKnowledgeBaseJob(
+            @PathVariable UUID businessId, @PathVariable UUID jobId) {
+        try {
+            KnowledgeBaseJobResponse job = knowledgeBaseJobService.getJob(jobId);
+            if (!businessId.equals(job.getBusinessId())) {
+                return ResponseEntity.status(404).body(ApiResponse.error("Job not found for this business"));
+            }
+            return ResponseEntity.ok(ApiResponse.success(job));
+        } catch (NoSuchElementException e) {
+            return ResponseEntity.status(404).body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to fetch knowledge base job {}", jobId, e);
+            return ResponseEntity.status(500).body(ApiResponse.error("Failed to fetch job: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Restore the active (in-progress) build job for a business, if any -
+     * used by the frontend to resume polling after a page refresh.
+     * GET /api/businesses/{businessId}/knowledge-base/jobs/active
+     */
+    @GetMapping("/businesses/{businessId}/knowledge-base/jobs/active")
+    public ResponseEntity<ApiResponse<KnowledgeBaseJobResponse>> getActiveKnowledgeBaseJob(
+            @PathVariable UUID businessId) {
+        try {
+            return knowledgeBaseJobService.getActiveJob(businessId)
+                    .map(job -> ResponseEntity.ok(ApiResponse.success(job)))
+                    .orElseGet(() -> ResponseEntity.ok(ApiResponse.success(null, "No active build job")));
+        } catch (Exception e) {
+            log.error("Failed to fetch active knowledge base job for business {}", businessId, e);
+            return ResponseEntity.status(500).body(ApiResponse.error("Failed to fetch active job: " + e.getMessage()));
         }
     }
 

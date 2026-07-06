@@ -86,6 +86,11 @@ apify:
   api-token: ${APIFY_API_TOKEN:}
   enabled: ${APIFY_ENABLED:false}
   default-actor-id: ${APIFY_DEFAULT_ACTOR_ID:}
+  # Bug 4: A RUNNING run with no update for longer than this is marked FAILED
+  # automatically (stale-job recovery), and unfinished runs are reconciled
+  # against Apify on every application startup + on this periodic interval.
+  stale-run-timeout-minutes: ${APIFY_STALE_RUN_TIMEOUT_MINUTES:30}
+  reconcile-interval-ms: ${APIFY_RECONCILE_INTERVAL_MS:300000}
 
 # Vapi Configuration (F-008)
 vapi:
@@ -94,6 +99,14 @@ vapi:
   phone-number-id: ${VAPI_PHONE_NUMBER_ID:}
   webhook-secret: ${VAPI_WEBHOOK_SECRET:}
   enabled: ${VAPI_ENABLED:false}
+
+# Knowledge Base async build job configuration (Bug 2 fix)
+kb:
+  # A build job with no progress update within this window is marked FAILED
+  # automatically (stale-job recovery). Unfinished jobs are also reconciled
+  # on every application startup and on this periodic interval.
+  job-stale-timeout-minutes: ${KB_JOB_STALE_TIMEOUT_MINUTES:15}
+  job-reconcile-interval-ms: ${KB_JOB_RECONCILE_INTERVAL_MS:300000}
 
 # RAG / Knowledge Base Configuration (F-004)
 rag:

@@ -21,6 +21,9 @@ import com.agentopscrm.repository.LeadRepository;
 import com.agentopscrm.repository.LeadSourceRunRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,6 +62,16 @@ public class LeadFinderService {
     private static final int DEFAULT_MAX_RESULTS = 25;
     private static final int HARD_MAX_RESULTS = 200;
 
+    // Safe, machine-readable failure codes (never expose tokens/secrets).
+    public static final String FAILURE_CODE_APIFY_UNAUTHORIZED = "APIFY_UNAUTHORIZED";
+    public static final String FAILURE_CODE_STALE_TIMEOUT = "STALE_TIMEOUT";
+    public static final String SAFE_UNAUTHORIZED_MESSAGE =
+        "Apify credentials were rejected. Update APIFY_API_TOKEN.";
+
+    // A RUNNING run with no update in this long is considered stale and is
+    // reconciled to FAILED (configurable via APIFY_STALE_RUN_TIMEOUT_MINUTES).
+    private final long staleRunTimeoutMinutes;
+
     // AgentLog action constants (F-010).
     public static final String ACTION_SEARCH_STARTED = "APIFY_LEAD_SEARCH_STARTED";
     public static final String ACTION_SEARCH_COMPLETED = "APIFY_LEAD_SEARCH_COMPLETED";
@@ -80,7 +93,8 @@ public class LeadFinderService {
         LeadRepository leadRepository,
         BusinessRepository businessRepository,
         AgentLogRepository agentLogRepository,
-        ApifyClient apifyClient
+        ApifyClient apifyClient,
+        @org.springframework.beans.factory.annotation.Value("${apify.stale-run-timeout-minutes:30}") long staleRunTimeoutMinutes
     ) {
         this.runRepository = runRepository;
         this.discoveredLeadRepository = discoveredLeadRepository;
@@ -88,6 +102,7 @@ public class LeadFinderService {
         this.businessRepository = businessRepository;
         this.agentLogRepository = agentLogRepository;
         this.apifyClient = apifyClient;
+        this.staleRunTimeoutMinutes = staleRunTimeoutMinutes;
     }
 
     /**
@@ -139,12 +154,17 @@ public class LeadFinderService {
             run = runRepository.save(run);
             logger.info("Apify run started: runId={}, datasetId={}", runInfo.runId, runInfo.datasetId);
         } catch (ApifyClient.ApifyException e) {
-            logger.error("Failed to start Apify actor run", e);
+            logger.error("Failed to start Apify actor run: unauthorized={}", e.unauthorized);
             run.setStatus(LeadSourceRunStatus.FAILED);
-            run.setFailureReason(e.getMessage());
+            if (e.unauthorized) {
+                run.setFailureCode(FAILURE_CODE_APIFY_UNAUTHORIZED);
+                run.setFailureReason(SAFE_UNAUTHORIZED_MESSAGE);
+            } else {
+                run.setFailureReason(e.getMessage());
+            }
             run = runRepository.save(run);
             logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR,
-                "Failed to start Apify run", e.getMessage());
+                "Failed to start Apify run", run.getFailureReason());
         }
 
         return mapRun(run);
@@ -175,15 +195,19 @@ public class LeadFinderService {
                     datasetId = info.datasetId;
                     run.setApifyDatasetId(datasetId);
                 }
+                // Map Apify statuses: SUCCEEDED -> COMPLETED (continue below to fetch
+                // items); FAILED/ABORTED/TIMED-OUT -> FAILED immediately.
                 if (info.isFinished() && !info.isSucceeded()) {
                     run.setStatus(LeadSourceRunStatus.FAILED);
                     run.setFailureReason("Apify run status: " + info.status);
+                    run.setLastSyncedAt(LocalDateTime.now());
                     runRepository.save(run);
                     logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR,
                         "Apify run did not succeed", "status=" + info.status);
                     return mapRun(run);
                 }
             }
+            run.setLastSyncedAt(LocalDateTime.now());
 
             List<ApifyClient.ApifyLeadResult> results = apifyClient.fetchDatasetItems(datasetId);
 
@@ -230,12 +254,18 @@ public class LeadFinderService {
             logger.info("Synced run {}: {} new discovered leads ({} total)", run.getId(), newCount, total);
 
         } catch (ApifyClient.ApifyException e) {
-            logger.error("Failed to sync Apify run {}", run.getId(), e);
+            logger.error("Failed to sync Apify run {}: unauthorized={}", run.getId(), e.unauthorized);
             run.setStatus(LeadSourceRunStatus.FAILED);
-            run.setFailureReason(e.getMessage());
+            if (e.unauthorized) {
+                run.setFailureCode(FAILURE_CODE_APIFY_UNAUTHORIZED);
+                run.setFailureReason(SAFE_UNAUTHORIZED_MESSAGE);
+            } else {
+                run.setFailureReason(e.getMessage());
+            }
+            run.setLastSyncedAt(LocalDateTime.now());
             run = runRepository.save(run);
             logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR,
-                "Failed to sync Apify run", e.getMessage());
+                "Failed to sync Apify run", run.getFailureReason());
         }
 
         return mapRun(run);
@@ -374,6 +404,121 @@ public class LeadFinderService {
     }
 
     // ------------------------------------------------------------------
+    // Reconciliation (Bug 4: stuck RUNNING runs, restart recovery)
+    // ------------------------------------------------------------------
+
+    /**
+     * Reconcile unfinished runs once the application context is fully started - this
+     * recovers any runs left in RUNNING state across an application restart (e.g. Railway
+     * redeploy) instead of leaving them stuck forever in the UI.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void reconcileOnStartup() {
+        try {
+            int reconciled = reconcileActiveRuns();
+            logger.info("Startup reconciliation complete: {} run(s) updated", reconciled);
+        } catch (Exception e) {
+            logger.error("Startup reconciliation of Apify lead finder runs failed", e);
+        }
+    }
+
+    /**
+     * Periodic reconciliation job - polls Apify for RUNNING runs and marks stale runs as
+     * FAILED. Interval configurable via APIFY_RECONCILE_INTERVAL_MS (default 5 minutes).
+     */
+    @Scheduled(fixedDelayString = "${apify.reconcile-interval-ms:300000}")
+    public void scheduledReconciliation() {
+        try {
+            reconcileActiveRuns();
+        } catch (Exception e) {
+            logger.error("Scheduled reconciliation of Apify lead finder runs failed", e);
+        }
+    }
+
+    /**
+     * Reconcile all currently RUNNING runs: poll Apify for their latest status and mark
+     * locally stale runs (no update for longer than the configured timeout) as FAILED.
+     * Safe to call repeatedly (idempotent) - intended for a periodic scheduled job and for
+     * a one-time pass immediately after application startup so runs left RUNNING across a
+     * restart are not stuck forever.
+     *
+     * @return number of runs reconciled (status changed)
+     */
+    @Transactional
+    public int reconcileActiveRuns() {
+        List<LeadSourceRun> runningRuns = runRepository.findByStatusOrderByCreatedAtDesc(LeadSourceRunStatus.RUNNING);
+        int reconciled = 0;
+        for (LeadSourceRun run : runningRuns) {
+            if (reconcileSingleRun(run)) {
+                reconciled++;
+            }
+        }
+        if (reconciled > 0) {
+            logger.info("Reconciled {} stale/active Apify lead finder run(s)", reconciled);
+        }
+        return reconciled;
+    }
+
+    /**
+     * Reconcile one RUNNING run. Returns true if its status changed.
+     */
+    private boolean reconcileSingleRun(LeadSourceRun run) {
+        // First, mark as stale/FAILED if it has not been touched within the timeout window,
+        // regardless of whether Apify is reachable - protects against indefinite RUNNING
+        // rows surviving forever if Apify is down or the token was revoked.
+        LocalDateTime referenceTime = run.getLastSyncedAt() != null ? run.getLastSyncedAt() : run.getUpdatedAt();
+        if (referenceTime != null
+            && referenceTime.isBefore(LocalDateTime.now().minusMinutes(staleRunTimeoutMinutes))) {
+            run.setStatus(LeadSourceRunStatus.FAILED);
+            run.setFailureCode(FAILURE_CODE_STALE_TIMEOUT);
+            run.setFailureReason("Run did not complete within " + staleRunTimeoutMinutes
+                + " minutes and was marked FAILED automatically.");
+            runRepository.save(run);
+            logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR,
+                "Marked stale RUNNING run as FAILED", run.getFailureReason());
+            return true;
+        }
+
+        if (!apifyClient.isConfigured() || run.getApifyRunId() == null) {
+            return false;
+        }
+
+        try {
+            ApifyClient.ApifyRunInfo info = apifyClient.getRun(run.getApifyRunId());
+            if (info.isFinished() && !info.isSucceeded()) {
+                run.setStatus(LeadSourceRunStatus.FAILED);
+                run.setFailureReason("Apify run status: " + info.status);
+                run.setLastSyncedAt(LocalDateTime.now());
+                runRepository.save(run);
+                logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR,
+                    "Reconciled run to FAILED", "status=" + info.status);
+                return true;
+            }
+            // If succeeded, let the normal syncRun() flow (manual or scheduled) fetch and
+            // import results - this method only handles status reconciliation, not the
+            // potentially large/slow dataset fetch.
+            if (info.isSucceeded()) {
+                run.setLastSyncedAt(LocalDateTime.now());
+                runRepository.save(run);
+            }
+            return false;
+        } catch (ApifyClient.ApifyException e) {
+            if (e.unauthorized) {
+                run.setStatus(LeadSourceRunStatus.FAILED);
+                run.setFailureCode(FAILURE_CODE_APIFY_UNAUTHORIZED);
+                run.setFailureReason(SAFE_UNAUTHORIZED_MESSAGE);
+                run.setLastSyncedAt(LocalDateTime.now());
+                runRepository.save(run);
+                logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR,
+                    "Reconciled run to FAILED (unauthorized)", run.getFailureReason());
+                return true;
+            }
+            logger.warn("Reconciliation could not reach Apify for run {}: {}", run.getId(), e.getMessage());
+            return false;
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Duplicate detection
     // ------------------------------------------------------------------
 
@@ -482,11 +627,14 @@ public class LeadFinderService {
         r.setKeywords(run.getKeywords());
         r.setActorId(run.getActorId());
         r.setApifyRunId(run.getApifyRunId());
+        r.setApifyDatasetId(run.getApifyDatasetId());
         r.setMaxResults(run.getMaxResults());
         r.setStatus(run.getStatus());
         r.setTotalResults(run.getTotalResults());
         r.setImportedCount(run.getImportedCount());
         r.setFailureReason(run.getFailureReason());
+        r.setFailureCode(run.getFailureCode());
+        r.setLastSyncedAt(run.getLastSyncedAt());
         r.setCreatedAt(run.getCreatedAt());
         r.setUpdatedAt(run.getUpdatedAt());
         return r;

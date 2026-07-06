@@ -58,8 +58,9 @@ export default function LeadDetailPage() {
       setUpdating(true);
       const updatedLead = await leadsApi.updateLeadStatus(id, { status: newStatus });
       setLead(updatedLead);
+      showToast('success', `Lead status updated to ${newStatus}`);
     } catch (err: any) {
-      alert('Failed to update status: ' + err.message);
+      showToast('error', 'Failed to update status: ' + (err.message || 'Unknown error'));
     } finally {
       setUpdating(false);
     }
@@ -99,17 +100,17 @@ export default function LeadDetailPage() {
 
   const handleStartVoiceCall = async () => {
     if (!lead || !id || !lead.phone) {
-      alert('Lead must have a phone number to start a voice call');
+      showToast('error', 'Lead must have a phone number to start a voice call');
       return;
     }
 
     try {
       setStartingCall(true);
       await voiceCallsApi.startCall(id, { phoneNumber: lead.phone });
-      alert('Voice call started successfully!');
+      showToast('success', 'Voice call started successfully!');
       loadRecentCalls(id);
     } catch (err: any) {
-      alert('Failed to start voice call: ' + err.message);
+      showToast('error', 'Failed to start voice call: ' + (err.message || 'Unknown error'));
     } finally {
       setStartingCall(false);
     }

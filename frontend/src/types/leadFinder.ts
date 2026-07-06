@@ -12,11 +12,14 @@ export interface LeadSourceRun {
   keywords?: string;
   actorId?: string;
   apifyRunId?: string;
+  apifyDatasetId?: string;
   maxResults?: number;
   status: LeadSourceRunStatus;
   totalResults: number;
   importedCount: number;
   failureReason?: string;
+  failureCode?: string;
+  lastSyncedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

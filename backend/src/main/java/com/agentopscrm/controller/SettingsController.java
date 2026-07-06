@@ -1,6 +1,7 @@
 package com.agentopscrm.controller;
 
 import com.agentopscrm.dto.settings.*;
+import com.agentopscrm.entity.enums.ReadinessStatus;
 import com.agentopscrm.service.SettingsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,8 +85,28 @@ public class SettingsController {
     @GetMapping("/voice")
     public ResponseEntity<VoiceConfigResponse> getVoiceConfig() {
         log.info("GET /api/settings/voice - Fetching Voice AI configuration");
-        VoiceConfigResponse response = settingsService.getVoiceConfig();
-        return ResponseEntity.ok(response);
+        try {
+            VoiceConfigResponse response = settingsService.getVoiceConfig();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            // Never surface a bare 500 for the Voice Settings panel - a missing or
+            // misconfigured Vapi integration must degrade gracefully to a safe
+            // NOT_CONFIGURED readiness response instead of failing the request.
+            log.error("Failed to build voice configuration response; returning safe NOT_CONFIGURED fallback", e);
+            VoiceConfigResponse fallback = new VoiceConfigResponse();
+            fallback.setEnabled(false);
+            fallback.setApiKeyConfigured(false);
+            fallback.setAssistantIdConfigured(false);
+            fallback.setPhoneNumberIdConfigured(false);
+            fallback.setWebhookSecretConfigured(false);
+            fallback.setWebhookEndpoint("/api/vapi/webhook");
+            fallback.setStatus(ReadinessStatus.NOT_CONFIGURED);
+            fallback.setStatusMessage("Vapi configuration is incomplete");
+            fallback.setTotalCalls(0L);
+            fallback.setSuccessfulCalls(0L);
+            fallback.setFailedCalls(0L);
+            return ResponseEntity.ok(fallback);
+        }
     }
 
     /**

@@ -35,6 +35,16 @@ public interface LeadRepository extends JpaRepository<Lead, UUID> {
     @EntityGraph(attributePaths = {"business", "conversation"})
     Optional<Lead> findById(UUID id);
 
+    /**
+     * Targeted fetch query to reload a Lead with business and conversation
+     * fully initialized. Used after save()/merge() operations where the
+     * returned managed entity may hold uninitialized lazy proxies for these
+     * associations (e.g. after a detached entity is merged), to guarantee
+     * safe DTO mapping without LazyInitializationException.
+     */
+    @Query("SELECT l FROM Lead l LEFT JOIN FETCH l.business LEFT JOIN FETCH l.conversation WHERE l.id = :id")
+    Optional<Lead> findWithAssociationsById(@Param("id") UUID id);
+
     // Add EntityGraph to findByBusinessId for eager fetching
     @EntityGraph(attributePaths = {"business", "conversation"})
     List<Lead> findByBusinessId(UUID businessId);

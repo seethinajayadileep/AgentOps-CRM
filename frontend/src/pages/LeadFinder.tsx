@@ -8,6 +8,7 @@ import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import LoadingState from '../components/ui/LoadingState';
 import StatusBadge from '../components/ui/StatusBadge';
+import RunDetailsModal from '../components/leadFinder/RunDetailsModal';
 
 /**
  * Lead Finder page (F-010 Apify Lead Finder).
@@ -21,6 +22,7 @@ export default function LeadFinder() {
   const [success, setSuccess] = useState<string | null>(null);
   const [apifyConfigured, setApifyConfigured] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedRun, setSelectedRun] = useState<LeadSourceRun | null>(null);
 
   const [form, setForm] = useState<StartLeadFinderRunRequest>({
     searchName: '',
@@ -208,43 +210,78 @@ export default function LeadFinder() {
                 </tr>
               </thead>
               <tbody>
-                {runs.map((run) => (
-                  <tr
-                    key={run.id}
-                    className="border-b border-white/[0.04] transition-colors duration-200 hover:bg-white/[0.03]"
-                  >
-                    <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-zinc-100">
-                      {run.searchName}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.industry || '-'}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.location || '-'}</td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <StatusBadge status={run.status} />
-                      {run.status === 'FAILED' && run.failureReason && (
-                        <div className="mt-1 max-w-xs truncate text-xs text-red-400" title={run.failureReason}>
-                          {run.failureReason}
-                        </div>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.totalResults}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.importedCount}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">
-                      {new Date(run.createdAt).toLocaleString()}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm">
-                      <button
-                        onClick={() => navigate(`/lead-finder/${run.id}`)}
-                        className="font-medium text-primary-300 hover:text-primary-200"
-                      >
-                        View Results
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {runs.map((run) => {
+                  const isStale =
+                    run.status === 'RUNNING' &&
+                    run.lastSyncedAt &&
+                    Date.now() - new Date(run.lastSyncedAt).getTime() > 30 * 60 * 1000;
+                  return (
+                    <tr
+                      key={run.id}
+                      onClick={() => setSelectedRun(run)}
+                      className="cursor-pointer border-b border-white/[0.04] transition-colors duration-200 hover:bg-white/[0.03]"
+                    >
+                      <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-zinc-100">
+                        {run.searchName}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.industry || '-'}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.location || '-'}</td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <StatusBadge status={run.status} />
+                        {run.status === 'RUNNING' && (
+                          <div className="mt-1 text-xs text-zinc-500">
+                            {isStale ? (
+                              <span className="text-amber-400">Stale - no update in 30+ min</span>
+                            ) : (
+                              <span>
+                                Last synced:{' '}
+                                {run.lastSyncedAt ? new Date(run.lastSyncedAt).toLocaleTimeString() : 'never'}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {run.status === 'FAILED' && run.failureReason && (
+                          <div className="mt-1 max-w-xs truncate text-xs text-red-400" title={run.failureReason}>
+                            {run.failureReason}
+                          </div>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.totalResults}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.importedCount}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">
+                        {new Date(run.createdAt).toLocaleString()}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => navigate(`/lead-finder/${run.id}`)}
+                          className="font-medium text-primary-300 hover:text-primary-200"
+                        >
+                          View Results
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
+      )}
+
+      {selectedRun && (
+        <RunDetailsModal
+          run={selectedRun}
+          onClose={() => setSelectedRun(null)}
+          onSync={async (id) => {
+            try {
+              const updated = await leadFinderApi.syncRun(id);
+              setSelectedRun(updated);
+              await loadRuns();
+            } catch (err: any) {
+              setError(err.message || 'Failed to sync run');
+            }
+          }}
+        />
       )}
     </div>
   );

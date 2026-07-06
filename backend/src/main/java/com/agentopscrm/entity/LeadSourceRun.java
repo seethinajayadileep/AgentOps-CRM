@@ -67,6 +67,12 @@ public class LeadSourceRun extends AuditableEntity {
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 
+    @Column(name = "failure_code", length = 50)
+    private String failureCode;
+
+    @Column(name = "last_synced_at")
+    private java.time.LocalDateTime lastSyncedAt;
+
     @OneToMany(mappedBy = "leadSourceRun", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DiscoveredLead> discoveredLeads = new ArrayList<>();
 
@@ -173,6 +179,22 @@ public class LeadSourceRun extends AuditableEntity {
 
     public void setFailureReason(String failureReason) {
         this.failureReason = failureReason;
+    }
+
+    public String getFailureCode() {
+        return failureCode;
+    }
+
+    public void setFailureCode(String failureCode) {
+        this.failureCode = failureCode;
+    }
+
+    public java.time.LocalDateTime getLastSyncedAt() {
+        return lastSyncedAt;
+    }
+
+    public void setLastSyncedAt(java.time.LocalDateTime lastSyncedAt) {
+        this.lastSyncedAt = lastSyncedAt;
     }
 
     public List<DiscoveredLead> getDiscoveredLeads() {

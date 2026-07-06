@@ -280,20 +280,34 @@ public class SettingsService {
         response.setStatus(checkVapiStatus());
         response.setStatusMessage(getVapiMessage());
 
-        // Voice call metrics
-        response.setTotalCalls(voiceCallRepository.count());
-        response.setSuccessfulCalls(voiceCallRepository.countByStatus(VoiceCallStatus.COMPLETED));
-        response.setFailedCalls(voiceCallRepository.countByStatus(VoiceCallStatus.FAILED));
+        // Voice call metrics - never allow a DB/query problem here to turn into
+        // a 500 for the whole Voice Settings panel. Vapi may be DISABLED or
+        // NOT_CONFIGURED and the panel must still render safely with zeroed
+        // metrics rather than failing the request.
+        try {
+            response.setTotalCalls(voiceCallRepository.count());
+            response.setSuccessfulCalls(voiceCallRepository.countByStatus(VoiceCallStatus.COMPLETED));
+            response.setFailedCalls(voiceCallRepository.countByStatus(VoiceCallStatus.FAILED));
 
-        // Last successful and failed calls
-        List<VoiceCall> completedCalls = voiceCallRepository.findByStatus(VoiceCallStatus.COMPLETED, PageRequest.of(0, 1)).getContent();
-        if (!completedCalls.isEmpty()) {
-            response.setLastSuccessfulCall(completedCalls.get(0).getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
-        }
+            List<VoiceCall> completedCalls = voiceCallRepository.findByStatus(VoiceCallStatus.COMPLETED, PageRequest.of(0, 1)).getContent();
+            if (!completedCalls.isEmpty()) {
+                response.setLastSuccessfulCall(completedCalls.get(0).getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
+            }
 
-        List<VoiceCall> failedCalls = voiceCallRepository.findByStatus(VoiceCallStatus.FAILED, PageRequest.of(0, 1)).getContent();
-        if (!failedCalls.isEmpty()) {
-            response.setLastFailedCall(failedCalls.get(0).getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
+            List<VoiceCall> failedCalls = voiceCallRepository.findByStatus(VoiceCallStatus.FAILED, PageRequest.of(0, 1)).getContent();
+            if (!failedCalls.isEmpty()) {
+                response.setLastFailedCall(failedCalls.get(0).getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
+            }
+        } catch (Exception e) {
+            log.error("Failed to load voice call metrics; returning configuration status without metrics", e);
+            response.setTotalCalls(0L);
+            response.setSuccessfulCalls(0L);
+            response.setFailedCalls(0L);
+            // Only escalate to ERROR if we otherwise believed voice was healthy/configured.
+            if (response.getStatus() == ReadinessStatus.CONFIGURED || response.getStatus() == ReadinessStatus.HEALTHY) {
+                response.setStatus(ReadinessStatus.ERROR);
+                response.setStatusMessage("Vapi is configured but voice call metrics are temporarily unavailable");
+            }
         }
 
         return response;

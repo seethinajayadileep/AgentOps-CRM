@@ -8,6 +8,8 @@ import EmptyState from '../components/ui/EmptyState';
 import ConversationStatusBadge from '../components/conversations/ConversationStatusBadge';
 import ChannelBadge from '../components/conversations/ChannelBadge';
 import StatusBadge from '../components/ui/StatusBadge';
+import ToastContainer from '../components/ui/ToastContainer';
+import { useToast } from '../hooks/useToast';
 import { conversationsApi } from '../api/conversationsApi';
 import type {
   ConversationListItem,
@@ -25,6 +27,7 @@ import type {
  */
 export default function Conversations() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { toasts, showToast, closeToast } = useToast();
 
   // State
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
@@ -110,7 +113,7 @@ export default function Conversations() {
       loadConversations(true);
       loadSummary();
     } catch (err: any) {
-      alert(err.message || 'Failed to update status');
+      showToast('error', err.message || 'Failed to update status');
     } finally {
       setUpdatingStatus(false);
     }
@@ -175,7 +178,9 @@ export default function Conversations() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <>
+      <ToastContainer toasts={toasts} onClose={closeToast} />
+      <div className="h-full flex flex-col">
       <PageHeader title="Conversations" subtitle="Monitor customer conversations handled by your AI support agent" />
 
       {/* Summary Cards */}
@@ -411,6 +416,7 @@ export default function Conversations() {
           </Card>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

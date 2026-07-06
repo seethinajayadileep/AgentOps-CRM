@@ -16,9 +16,9 @@ import com.agentopscrm.repository.BusinessRepository;
 import com.agentopscrm.repository.DiscoveredLeadRepository;
 import com.agentopscrm.repository.LeadRepository;
 import com.agentopscrm.repository.LeadSourceRunRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -46,7 +46,14 @@ class LeadFinderServiceTest {
     @Mock private AgentLogRepository agentLogRepository;
     @Mock private ApifyClient apifyClient;
 
-    @InjectMocks private LeadFinderService service;
+    private LeadFinderService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new LeadFinderService(
+            runRepository, discoveredLeadRepository, leadRepository,
+            businessRepository, agentLogRepository, apifyClient, 30L);
+    }
 
     private StartLeadFinderRunRequest request() {
         StartLeadFinderRunRequest r = new StartLeadFinderRunRequest();

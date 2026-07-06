@@ -21,6 +21,7 @@ import {
 import { businessApi } from '../api/business';
 import { crawlApi, type Document } from '../api/crawl';
 import { ragApi, type RagResultItem } from '../api/rag';
+import { useKnowledgeBaseBuildJob } from '../hooks/useKnowledgeBaseBuildJob';
 import type { ApiResponse, Business } from '../types/index';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
@@ -58,10 +59,8 @@ export default function BusinessDetail() {
   const [crawling, setCrawling] = useState(false);
   const [crawlError, setCrawlError] = useState<string | null>(null);
 
-  // Knowledge base build state
-  const [buildingKB, setBuildingKB] = useState(false);
-  const [kbError, setKbError] = useState<string | null>(null);
-  const [kbSuccess, setKbSuccess] = useState<string | null>(null);
+  // Knowledge base build state (Bug 2: async job workflow with polling)
+  const kbJob = useKnowledgeBaseBuildJob(id);
 
   // RAG search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -150,28 +149,9 @@ export default function BusinessDetail() {
 
   const handleBuildKB = async () => {
     if (!business) return;
-
-    setBuildingKB(true);
-    setKbError(null);
-    setKbSuccess(null);
-
-    try {
-      const response = await ragApi.buildKnowledgeBase(id);
-      if (response.success && response.data?.success) {
-        const data = response.data;
-        setKbSuccess(
-          data.message ||
-            `Knowledge base built: ${data.chunksCreated} chunks, ${data.embeddingsCreated} embeddings.`
-        );
-        setTimeout(() => setKbSuccess(null), 5000);
-      } else {
-        setKbError(response.error || response.data?.message || 'Failed to build knowledge base');
-      }
-    } catch (err: any) {
-      setKbError(err.message || 'Failed to build knowledge base');
-    } finally {
-      setBuildingKB(false);
-    }
+    // useKnowledgeBaseBuildJob already guards against duplicate submissions
+    // while a build is starting or actively running.
+    await kbJob.startBuild();
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -277,11 +257,13 @@ export default function BusinessDetail() {
             </button>
             <button
               onClick={handleBuildKB}
-              disabled={buildingKB || !documents.length}
+              disabled={kbJob.starting || kbJob.isBuildActive || !documents.length}
               className="btn-secondary"
             >
               <Database size={16} />
-              {buildingKB ? 'Building…' : 'Build Knowledge Base'}
+              {kbJob.starting || kbJob.isBuildActive
+                ? `Building… ${kbJob.job ? `${kbJob.job.progressPercentage}%` : ''}`
+                : 'Build Knowledge Base'}
             </button>
             <button onClick={() => navigate(`/businesses/${business.id}/chat`)} className="btn-success">
               <MessageCircle size={16} />
@@ -302,11 +284,30 @@ export default function BusinessDetail() {
       {crawlError && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{crawlError}</div>
       )}
-      {kbSuccess && (
-        <div className="rounded-xl border border-[#22C55E]/30 bg-[#22C55E]/10 p-4 text-[#4ade80]">{kbSuccess}</div>
+      {kbJob.error && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{kbJob.error}</div>
       )}
-      {kbError && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{kbError}</div>
+      {kbJob.job && kbJob.isBuildActive && (
+        <div className="rounded-xl border border-primary-500/30 bg-primary-500/10 p-4 text-primary-200">
+          Knowledge base build in progress: <strong>{kbJob.job.status}</strong> (
+          {kbJob.job.progressPercentage}%). The backend accepted this job and continues processing even if
+          this page is refreshed.
+        </div>
+      )}
+      {kbJob.job && kbJob.job.status === 'COMPLETED' && (
+        <div className="rounded-xl border border-[#22C55E]/30 bg-[#22C55E]/10 p-4 text-[#4ade80]">
+          Knowledge base built: {kbJob.job.chunksCreated} chunks, {kbJob.job.embeddingsCreated} embeddings.
+        </div>
+      )}
+      {kbJob.job && kbJob.job.status === 'PARTIAL' && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-300">
+          Knowledge base build finished with warnings: {kbJob.job.errorMessage || 'Some content could not be processed.'}
+        </div>
+      )}
+      {kbJob.job && kbJob.job.status === 'FAILED' && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+          Knowledge base build failed: {kbJob.job.errorMessage || 'An unexpected error occurred.'}
+        </div>
       )}
 
       {loading && <LoadingState label="Loading business…" />}

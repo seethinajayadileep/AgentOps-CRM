@@ -13,6 +13,7 @@ interface ApprovalCardProps {
 const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(approval.content);
@@ -23,12 +24,14 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
   const handleApprove = async () => {
     if (isLoading) return;
     setIsLoading(true);
+    setActionError(null);
     try {
       const updatedApproval = await approveApproval(approval.approvalId);
       if (onUpdate) onUpdate(updatedApproval);
     } catch (error) {
       console.error('Failed to approve approval:', error);
-      alert('Failed to approve. Please try again.');
+      setActionError('Failed to approve. Please try again.');
+      setTimeout(() => setActionError(null), 5000);
     } finally {
       setIsLoading(false);
     }
@@ -37,12 +40,14 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
   const handleReject = async () => {
     if (isLoading) return;
     setIsLoading(true);
+    setActionError(null);
     try {
       const updatedApproval = await rejectApproval(approval.approvalId);
       if (onUpdate) onUpdate(updatedApproval);
     } catch (error) {
       console.error('Failed to reject approval:', error);
-      alert('Failed to reject. Please try again.');
+      setActionError('Failed to reject. Please try again.');
+      setTimeout(() => setActionError(null), 5000);
     } finally {
       setIsLoading(false);
     }
@@ -83,6 +88,12 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
           {approval.content}
         </div>
       </div>
+
+      {actionError && (
+        <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {actionError}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <button onClick={handleCopy} className="btn-secondary">

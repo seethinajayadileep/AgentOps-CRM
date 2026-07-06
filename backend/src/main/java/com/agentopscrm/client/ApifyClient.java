@@ -114,16 +114,17 @@ public class ApifyClient {
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
             return parseRunInfo(response.getBody());
         } catch (HttpClientErrorException e) {
-            logger.error("Apify API client error starting run: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new ApifyException("Apify API client error: " + e.getMessage(), e);
+            // Never log or rethrow the token; only the safe status code/message.
+            logger.error("Apify API client error starting run: {}", e.getStatusCode());
+            throw toApifyException(e, "starting run");
         } catch (HttpServerErrorException e) {
-            logger.error("Apify API server error starting run: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new ApifyException("Apify API server error: " + e.getMessage(), e);
+            logger.error("Apify API server error starting run: {}", e.getStatusCode());
+            throw new ApifyException("Apify API server error: " + e.getStatusCode(), e);
         } catch (ApifyException e) {
             throw e;
         } catch (Exception e) {
             logger.error("Unexpected error starting Apify actor run", e);
-            throw new ApifyException("Unexpected error starting Apify actor run: " + e.getMessage(), e);
+            throw new ApifyException("Unexpected error starting Apify actor run", e);
         }
     }
 
@@ -146,12 +147,15 @@ public class ApifyClient {
         try {
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, HttpEntity.EMPTY, Map.class);
             return parseRunInfo(response.getBody());
-        } catch (HttpClientErrorException | HttpServerErrorException e) {
-            logger.error("Apify API error fetching run {}: {} - {}", runId, e.getStatusCode(), e.getResponseBodyAsString());
-            throw new ApifyException("Apify API error fetching run: " + e.getMessage(), e);
+        } catch (HttpClientErrorException e) {
+            logger.error("Apify API client error fetching run {}: {}", runId, e.getStatusCode());
+            throw toApifyException(e, "fetching run");
+        } catch (HttpServerErrorException e) {
+            logger.error("Apify API server error fetching run {}: {}", runId, e.getStatusCode());
+            throw new ApifyException("Apify API server error: " + e.getStatusCode(), e);
         } catch (Exception e) {
             logger.error("Unexpected error fetching Apify run {}", runId, e);
-            throw new ApifyException("Unexpected error fetching Apify run: " + e.getMessage(), e);
+            throw new ApifyException("Unexpected error fetching Apify run", e);
         }
     }
 
@@ -192,13 +196,32 @@ public class ApifyClient {
             }
             logger.info("Fetched {} items from Apify dataset {}", results.size(), datasetId);
             return results;
-        } catch (HttpClientErrorException | HttpServerErrorException e) {
-            logger.error("Apify API error fetching dataset {}: {} - {}", datasetId, e.getStatusCode(), e.getResponseBodyAsString());
-            throw new ApifyException("Apify API error fetching dataset: " + e.getMessage(), e);
+        } catch (HttpClientErrorException e) {
+            logger.error("Apify API client error fetching dataset {}: {}", datasetId, e.getStatusCode());
+            throw toApifyException(e, "fetching dataset");
+        } catch (HttpServerErrorException e) {
+            logger.error("Apify API server error fetching dataset {}: {}", datasetId, e.getStatusCode());
+            throw new ApifyException("Apify API server error: " + e.getStatusCode(), e);
         } catch (Exception e) {
             logger.error("Unexpected error fetching Apify dataset {}", datasetId, e);
-            throw new ApifyException("Unexpected error fetching Apify dataset: " + e.getMessage(), e);
+            throw new ApifyException("Unexpected error fetching Apify dataset", e);
         }
+    }
+
+    /**
+     * Convert a client error from Apify into a safe {@link ApifyException}, classifying
+     * 401 responses distinctly so callers can mark runs FAILED immediately with a clear,
+     * user-facing reason instead of leaving them stuck. The Apify token and full response
+     * body are never included in the resulting message or logs.
+     */
+    private ApifyException toApifyException(HttpClientErrorException e, String context) {
+        if (e.getStatusCode().value() == 401) {
+            ApifyException ex = new ApifyException(
+                "Apify credentials were rejected. Update APIFY_API_TOKEN.", e);
+            ex.unauthorized = true;
+            return ex;
+        }
+        return new ApifyException("Apify API client error " + context + ": " + e.getStatusCode(), e);
     }
 
     // ------------------------------------------------------------------
@@ -387,6 +410,9 @@ public class ApifyClient {
      * Custom exception for Apify client errors.
      */
     public static class ApifyException extends Exception {
+        /** True when the underlying failure was a 401 Unauthorized from Apify. */
+        public boolean unauthorized = false;
+
         public ApifyException(String message) {
             super(message);
         }
