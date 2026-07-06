@@ -42,6 +42,9 @@ public interface VoiceCallRepository extends JpaRepository<VoiceCall, UUID> {
     Page<VoiceCall> findByConversationId(UUID conversationId, Pageable pageable);
 
     Page<VoiceCall> findByStatus(VoiceCallStatus status, Pageable pageable);
+    
+    @Query("SELECT v FROM VoiceCall v WHERE v.status = :status ORDER BY v.createdAt DESC")
+    Page<VoiceCall> findByStatusOrderByCreatedAtDesc(@Param("status") VoiceCallStatus status, Pageable pageable);
 
     Optional<VoiceCall> findByVapiCallId(String vapiCallId);
 

@@ -16,8 +16,11 @@ public class VoiceConfigResponse {
     private boolean phoneNumberIdConfigured;
     private boolean webhookSecretConfigured;
     private String webhookEndpoint;
+    private String webhookUrl;
     private ReadinessStatus status;
     private String statusMessage;
+    private boolean metricsAvailable;
+    private String metricsMessage;
     private Long totalCalls;
     private Long successfulCalls;
     private Long failedCalls;
@@ -76,6 +79,14 @@ public class VoiceConfigResponse {
         this.webhookEndpoint = webhookEndpoint;
     }
 
+    public String getWebhookUrl() {
+        return webhookUrl;
+    }
+
+    public void setWebhookUrl(String webhookUrl) {
+        this.webhookUrl = webhookUrl;
+    }
+
     public ReadinessStatus getStatus() {
         return status;
     }
@@ -90,6 +101,22 @@ public class VoiceConfigResponse {
 
     public void setStatusMessage(String statusMessage) {
         this.statusMessage = statusMessage;
+    }
+
+    public boolean isMetricsAvailable() {
+        return metricsAvailable;
+    }
+
+    public void setMetricsAvailable(boolean metricsAvailable) {
+        this.metricsAvailable = metricsAvailable;
+    }
+
+    public String getMetricsMessage() {
+        return metricsMessage;
+    }
+
+    public void setMetricsMessage(String metricsMessage) {
+        this.metricsMessage = metricsMessage;
     }
 
     public Long getTotalCalls() {

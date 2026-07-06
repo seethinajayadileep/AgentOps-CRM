@@ -89,6 +89,9 @@ public class SettingsService {
     @Value("${vapi.webhook-secret:}")
     private String vapiWebhookSecret;
     
+    @Value("${app.public-base-url:http://localhost:8080}")
+    private String publicBaseUrl;
+    
     @Value("${apify.enabled:false}")
     private boolean apifyEnabled;
 
@@ -282,7 +285,9 @@ public class SettingsService {
         response.setAssistantIdConfigured(assistantIdConfigured);
         response.setPhoneNumberIdConfigured(phoneNumberIdConfigured);
         response.setWebhookSecretConfigured(webhookSecretConfigured);
-        response.setWebhookEndpoint("/api/vapi/webhook");
+        response.setWebhookEndpoint("/api/webhooks/vapi");
+        // Provide complete webhook URL from backend
+        response.setWebhookUrl(publicBaseUrl + "/api/webhooks/vapi");
         
         // Determine status and message based on configuration
         ReadinessStatus status;
@@ -303,40 +308,43 @@ public class SettingsService {
             message = "Vapi configuration is incomplete. Missing: " + String.join(", ", missing) + ".";
         } else {
             status = ReadinessStatus.CONFIGURED;
-            message = "Vapi is configured. Voice calling is available.";
+            message = "Vapi configuration is present.";
         }
         
         response.setStatus(status);
         response.setStatusMessage(message);
 
-        // Voice call metrics - never allow a DB/query problem here to turn into
-        // a 500 for the whole Voice Settings panel. Vapi may be DISABLED or
-        // NOT_CONFIGURED and the panel must still render safely with zeroed
-        // metrics rather than failing the request.
+        // Voice call metrics - keep readiness and metrics status separate
+        // A metrics query failure should NOT change the Vapi readiness status
         try {
             response.setTotalCalls(voiceCallRepository.count());
             response.setSuccessfulCalls(voiceCallRepository.countByStatus(VoiceCallStatus.COMPLETED));
             response.setFailedCalls(voiceCallRepository.countByStatus(VoiceCallStatus.FAILED));
 
-            List<VoiceCall> completedCalls = voiceCallRepository.findByStatus(VoiceCallStatus.COMPLETED, PageRequest.of(0, 1)).getContent();
+            // Use sorted query to reliably get the latest calls
+            List<VoiceCall> completedCalls = voiceCallRepository.findByStatusOrderByCreatedAtDesc(
+                VoiceCallStatus.COMPLETED, PageRequest.of(0, 1)).getContent();
             if (!completedCalls.isEmpty()) {
                 response.setLastSuccessfulCall(completedCalls.get(0).getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
             }
 
-            List<VoiceCall> failedCalls = voiceCallRepository.findByStatus(VoiceCallStatus.FAILED, PageRequest.of(0, 1)).getContent();
+            List<VoiceCall> failedCalls = voiceCallRepository.findByStatusOrderByCreatedAtDesc(
+                VoiceCallStatus.FAILED, PageRequest.of(0, 1)).getContent();
             if (!failedCalls.isEmpty()) {
                 response.setLastFailedCall(failedCalls.get(0).getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
             }
+            
+            // Metrics loaded successfully
+            response.setMetricsAvailable(true);
+            response.setMetricsMessage("Voice call metrics are available.");
         } catch (Exception e) {
             log.error("Failed to load voice call metrics; returning configuration status without metrics", e);
             response.setTotalCalls(0L);
             response.setSuccessfulCalls(0L);
             response.setFailedCalls(0L);
-            // Only escalate to ERROR if we otherwise believed voice was healthy/configured.
-            if (response.getStatus() == ReadinessStatus.CONFIGURED || response.getStatus() == ReadinessStatus.HEALTHY) {
-                response.setStatus(ReadinessStatus.ERROR);
-                response.setStatusMessage("Vapi is configured but voice call metrics are temporarily unavailable");
-            }
+            // Keep Vapi readiness status unchanged - only mark metrics as unavailable
+            response.setMetricsAvailable(false);
+            response.setMetricsMessage("Voice call metrics are temporarily unavailable.");
         }
 
         return response;

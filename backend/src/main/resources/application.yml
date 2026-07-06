@@ -100,6 +100,10 @@ vapi:
   webhook-secret: ${VAPI_WEBHOOK_SECRET:}
   enabled: ${VAPI_ENABLED:false}
 
+# Application Public URL (used for webhook URLs, etc.)
+app:
+  public-base-url: ${PUBLIC_BACKEND_URL:http://localhost:8080}
+
 # Knowledge Base async build job configuration (Bug 2 fix)
 kb:
   # A build job with no progress update within this window is marked FAILED

@@ -94,8 +94,11 @@ export interface VoiceConfigResponse {
   phoneNumberIdConfigured: boolean;
   webhookSecretConfigured: boolean;
   webhookEndpoint: string;
+  webhookUrl: string;
   status: ReadinessStatus;
   statusMessage: string;
+  metricsAvailable: boolean;
+  metricsMessage: string;
   totalCalls: number;
   successfulCalls: number;
   failedCalls: number;

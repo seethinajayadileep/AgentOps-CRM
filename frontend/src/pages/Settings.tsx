@@ -483,9 +483,8 @@ function VoiceTab() {
   }, []);
 
   const copyWebhookUrl = () => {
-    if (data) {
-      const fullUrl = window.location.origin + data.webhookEndpoint;
-      navigator.clipboard.writeText(fullUrl);
+    if (data && data.webhookUrl) {
+      navigator.clipboard.writeText(data.webhookUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -610,7 +609,7 @@ function VoiceTab() {
           <div className="flex items-center gap-2">
             <input
               type="text"
-              value={window.location.origin + data.webhookEndpoint}
+              value={data.webhookUrl || ''}
               readOnly
               className="input-dark flex-1"
             />
@@ -624,6 +623,16 @@ function VoiceTab() {
 
       <Card className="p-6">
         <h3 className="mb-4 text-lg font-semibold text-white">Voice Call Metrics</h3>
+        
+        {!data.metricsAvailable && (
+          <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
+            <div className="flex items-start">
+              <AlertTriangle size={16} className="mr-2 mt-0.5 text-amber-400" />
+              <p className="text-sm text-amber-300">{data.metricsMessage}</p>
+            </div>
+          </div>
+        )}
+        
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <MetricCard label="Total Calls" value={data.totalCalls} />
           <MetricCard label="Successful" value={data.successfulCalls} color="green" />
