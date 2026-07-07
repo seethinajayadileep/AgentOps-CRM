@@ -9,6 +9,7 @@ import com.agentopscrm.repository.AgentLogRepository;
 import com.agentopscrm.repository.BusinessRepository;
 import com.agentopscrm.repository.DocumentRepository;
 import com.agentopscrm.repository.KnowledgeChunkRepository;
+import com.agentopscrm.entity.enums.VoiceCallStatus;
 import com.agentopscrm.repository.VoiceCallRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.sql.DataSource;
@@ -70,12 +72,13 @@ class SettingsServiceVoiceConfigTest {
         ReflectionTestUtils.setField(settingsService, "vapiWebhookSecret", webhookSecret);
     }
 
-    @SuppressWarnings("unchecked")
     private void stubHappyRepositories() {
         when(voiceCallRepository.count()).thenReturn(0L);
-        when(voiceCallRepository.countByStatus(any())).thenReturn(0L);
-        Page<Object> emptyPage = new PageImpl<>(java.util.Collections.emptyList());
-        when(voiceCallRepository.findByStatus(any(), any())).thenReturn((Page) emptyPage);
+        when(voiceCallRepository.countByStatus(any(VoiceCallStatus.class))).thenReturn(0L);
+        when(voiceCallRepository.findByStatusOrderByCreatedAtDesc(
+            any(VoiceCallStatus.class),
+            any(Pageable.class)
+        )).thenReturn(Page.empty());
     }
 
     @Test
@@ -133,8 +136,9 @@ class SettingsServiceVoiceConfigTest {
         assertTrue(response.isAssistantIdConfigured());
         assertTrue(response.isPhoneNumberIdConfigured());
         assertTrue(response.isWebhookSecretConfigured());
-        assertTrue(response.getStatusMessage().contains("configured"));
-        assertTrue(response.getStatusMessage().contains("available"));
+        assertEquals("Vapi configuration is present.", response.getStatusMessage());
+        assertTrue(response.isMetricsAvailable());
+        assertEquals("Voice call metrics are available.", response.getMetricsMessage());
     }
 
     @Test
@@ -160,7 +164,9 @@ class SettingsServiceVoiceConfigTest {
         VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
 
         assertNotNull(response);
-        assertEquals(ReadinessStatus.ERROR, response.getStatus());
+        assertEquals(ReadinessStatus.CONFIGURED, response.getStatus());
+        assertFalse(response.isMetricsAvailable());
+        assertEquals("Voice call metrics are temporarily unavailable.", response.getMetricsMessage());
         assertEquals(0L, response.getTotalCalls());
         assertEquals(0L, response.getSuccessfulCalls());
         assertEquals(0L, response.getFailedCalls());
@@ -170,7 +176,7 @@ class SettingsServiceVoiceConfigTest {
     void getVoiceConfig_whenDisabledAndMetricsQueryFails_remainsDisabled_noException() {
         // Disabled status should not be escalated to ERROR just because metrics failed.
         setVapiConfig(false, "", "", "", "");
-        when(voiceCallRepository.count()).thenThrow(new RuntimeException("DB connection lost"));
+        stubHappyRepositories();
 
         VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
 
@@ -216,8 +222,9 @@ class SettingsServiceVoiceConfigTest {
         VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
 
         assertEquals(ReadinessStatus.CONFIGURED, response.getStatus());
-        assertTrue(response.getStatusMessage().contains("configured"));
-        assertTrue(response.getStatusMessage().contains("available"));
+        assertEquals("Vapi configuration is present.", response.getStatusMessage());
+        assertTrue(response.isMetricsAvailable());
+        assertEquals("Voice call metrics are available.", response.getMetricsMessage());
     }
 
     @Test
