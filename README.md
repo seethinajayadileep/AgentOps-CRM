@@ -1,4 +1,4 @@
-# AgentOps CRM - Spring Boot Multi-Agent Voice AI Platform
+# AgentOps CRM - Spring Boot Multi-Agent AI Platform
 
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![Java](https://img.shields.io/badge/Java-21-orange)
@@ -265,48 +265,13 @@ npm test
 npm run test:e2e
 ```
 
-## 📝 Development Guidelines
 
-1. **Build step by step** - Do not implement full features at once
-2. **Update docs before coding** - Update FEATURE_CHECKLIST.md with planned tasks
-3. **Update docs after coding** - Update CHANGELOG.md with exact changes
-4. **Track all files** - Add new files to FILE_MAP.md with purpose
-5. **Document all APIs** - Add endpoints to API_CONTRACT.md
-6. **Log debug issues** - Write problems to DEBUG_LOG.md with root cause
-7. **Document decisions** - Add technical decisions to DECISIONS.md
-8. **Store prompts** - Save AI prompts in backend/src/main/resources/prompts/
-9. **Never hide changes** - Always explain what was changed and why
-10. **No fake logic** - Mark placeholder code clearly as TODO
-11. **Protect secrets** - Use environment variables, never expose keys in frontend
-
-## 🗺️ Roadmap
-
-See [ROADMAP.md](docs/ROADMAP.md) for complete development timeline.
-
-### Current Phase: Phase 0 - Project Foundation ✅
-
-**Completed:**
-- ✅ Monorepo structure
-- ✅ Backend skeleton
-- ✅ Frontend skeleton
-- ✅ Documentation files
-- ✅ Health endpoint
-
-**Next: Phase 1 - Core Infrastructure**
-- Database schema
-- Redis integration
-- Security layer
-- Enhanced health checks
-
-## 📄 License
-
-This project is a resume-level educational project.
 
 ## 👥 Team
 
 - **Backend**: Java Spring Boot
 - **Frontend**: React + Vite + TypeScript
-- **AI Integration**: Spring AI / LangChain4j
+
 
 ---
 
