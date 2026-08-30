@@ -138,7 +138,7 @@ agentops-crm/
 
 - **Java 21** or higher
 - **Maven 3.9** or higher
-- **Node.js 18** or higher
+- **Node.js 22** (Vercel / frontend)
 - **Docker & Docker Compose** (for PostgreSQL and Redis)
 - **PostgreSQL 16** or higher
 - **Redis 7** or higher

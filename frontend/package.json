@@ -5,7 +5,7 @@
   "type": "module",
   "description": "AgentOps CRM - Multi-Agent Voice AI Platform Frontend",
   "engines": {
-    "node": "20.x"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "vite",
