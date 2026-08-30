@@ -12,13 +12,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.Page;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,35 +68,28 @@ public class ApprovalService {
             UUID leadId,
             UUID businessId) {
         
-        log.info("Fetching approvals with filters: status={}, type={}, leadId={}, businessId={}", 
+        log.info("Fetching approvals with filters: status={}, type={}, leadId={}, businessId={}",
                 status, type, leadId, businessId);
 
-        List<Approval> approvals;
         Pageable pageable = PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Specification<Approval> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (type != null) {
+                predicates.add(cb.equal(root.get("approvalType"), type));
+            }
+            if (leadId != null) {
+                predicates.add(cb.equal(root.get("lead").get("id"), leadId));
+            }
+            if (businessId != null) {
+                predicates.add(cb.equal(root.get("business").get("id"), businessId));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
 
-        if (status != null && type != null && leadId != null && businessId != null) {
-            approvals = approvalRepository.findAllByBusinessIdAndLeadIdAndApprovalTypeAndStatus(
-                    businessId, leadId, type, status, pageable).getContent();
-        } else if (status != null && type != null && businessId != null) {
-            approvals = approvalRepository.findAllByBusinessIdAndApprovalTypeAndStatus(
-                    businessId, type, status, pageable).getContent();
-        } else if (status != null && businessId != null) {
-            approvals = approvalRepository.findAllByBusinessIdAndStatus(
-                    businessId, status, pageable).getContent();
-        } else if (type != null && businessId != null) {
-            approvals = approvalRepository.findAllByBusinessIdAndApprovalType(
-                    businessId, type, pageable).getContent();
-        } else if (businessId != null) {
-            approvals = approvalRepository.findAllByBusinessId(businessId, pageable).getContent();
-        } else if (status != null) {
-            approvals = approvalRepository.findByStatus(status, pageable).getContent();
-        } else if (type != null) {
-            approvals = approvalRepository.findByApprovalType(type, pageable).getContent();
-        } else if (leadId != null) {
-            approvals = approvalRepository.findAllByLeadId(leadId, pageable).getContent();
-        } else {
-            approvals = approvalRepository.findAll(pageable).getContent();
-        }
+        List<Approval> approvals = approvalRepository.findAll(spec, pageable).getContent();
 
         return approvals.stream()
                 .map(this::toApprovalResponse)

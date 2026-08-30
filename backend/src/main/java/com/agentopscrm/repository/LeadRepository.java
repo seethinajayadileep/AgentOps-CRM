@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -81,6 +82,13 @@ public interface LeadRepository extends JpaRepository<Lead, UUID> {
 
     boolean existsByPhone(String phone);
 
-    @Query("SELECT COUNT(l) > 0 FROM Lead l WHERE LOWER(l.name) = LOWER(:name) AND l.business.id = :businessId")
-    boolean existsByNameAndBusiness(@Param("name") String name, @Param("businessId") UUID businessId);
+    @Query("""
+        SELECT l FROM Lead l LEFT JOIN FETCH l.business
+        WHERE LOWER(l.name) LIKE LOWER(CONCAT('%', :term, '%'))
+           OR LOWER(COALESCE(l.email, '')) LIKE LOWER(CONCAT('%', :term, '%'))
+           OR LOWER(COALESCE(l.phone, '')) LIKE LOWER(CONCAT('%', :term, '%'))
+        """)
+    List<Lead> searchByTerm(@Param("term") String term, Pageable pageable);
+
+    long countByCreatedAtBefore(LocalDateTime cutoff);
 }

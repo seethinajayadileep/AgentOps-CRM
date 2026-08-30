@@ -1,7 +1,6 @@
 package com.agentopscrm.entity;
 
 import com.agentopscrm.entity.enums.CrawlStatus;
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -47,13 +46,28 @@ public class Business extends AuditableEntity {
     @Column(name = "crawl_status", nullable = false, length = 20)
     private CrawlStatus crawlStatus = CrawlStatus.NOT_STARTED;
 
-    @OneToMany(mappedBy = "business", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Column(name = "crawl_started_at")
+    private java.time.LocalDateTime crawlStartedAt;
+
+    @Column(name = "crawl_finished_at")
+    private java.time.LocalDateTime crawlFinishedAt;
+
+    @Column(name = "crawl_error", columnDefinition = "TEXT")
+    private String crawlError;
+
+    @Column(name = "crawl_pages_saved", nullable = false)
+    private int crawlPagesSaved = 0;
+
+    @Column(name = "crawl_pages_total", nullable = false)
+    private int crawlPagesTotal = 0;
+
+    @OneToMany(mappedBy = "business")
     private List<Document> documents = new ArrayList<>();
 
-    @OneToMany(mappedBy = "business", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "business")
     private List<Conversation> conversations = new ArrayList<>();
 
-    @OneToMany(mappedBy = "business", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "business")
     private List<Lead> leads = new ArrayList<>();
 
     public Business() {
@@ -119,6 +133,46 @@ public class Business extends AuditableEntity {
 
     public void setCrawlStatus(CrawlStatus crawlStatus) {
         this.crawlStatus = crawlStatus;
+    }
+
+    public java.time.LocalDateTime getCrawlStartedAt() {
+        return crawlStartedAt;
+    }
+
+    public void setCrawlStartedAt(java.time.LocalDateTime crawlStartedAt) {
+        this.crawlStartedAt = crawlStartedAt;
+    }
+
+    public java.time.LocalDateTime getCrawlFinishedAt() {
+        return crawlFinishedAt;
+    }
+
+    public void setCrawlFinishedAt(java.time.LocalDateTime crawlFinishedAt) {
+        this.crawlFinishedAt = crawlFinishedAt;
+    }
+
+    public String getCrawlError() {
+        return crawlError;
+    }
+
+    public void setCrawlError(String crawlError) {
+        this.crawlError = crawlError;
+    }
+
+    public int getCrawlPagesSaved() {
+        return crawlPagesSaved;
+    }
+
+    public void setCrawlPagesSaved(int crawlPagesSaved) {
+        this.crawlPagesSaved = crawlPagesSaved;
+    }
+
+    public int getCrawlPagesTotal() {
+        return crawlPagesTotal;
+    }
+
+    public void setCrawlPagesTotal(int crawlPagesTotal) {
+        this.crawlPagesTotal = crawlPagesTotal;
     }
 
     public List<Document> getDocuments() {

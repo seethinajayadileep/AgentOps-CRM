@@ -60,37 +60,37 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-white">{approval.type}</h3>
+            <h3 className="text-[16px] font-semibold text-ink">{approval.type}</h3>
             <ApprovalStatusBadge status={approval.status} />
             {approval.style && <Badge color="purple">{approval.style}</Badge>}
           </div>
           {approval.leadName && (
-            <p className="text-sm text-zinc-400">
-              Lead: <span className="text-zinc-200">{approval.leadName}</span>
+            <p className="text-sm text-slate">
+              Lead: <span className="text-ink">{approval.leadName}</span>
             </p>
           )}
           {approval.businessName && (
-            <p className="text-sm text-zinc-400">
-              Business: <span className="text-zinc-200">{approval.businessName}</span>
+            <p className="text-sm text-slate">
+              Business: <span className="text-ink">{approval.businessName}</span>
             </p>
           )}
         </div>
-        <div className="text-right text-xs text-zinc-500">
+        <div className="text-right text-xs text-slate">
           <div>Created: {formatDate(approval.createdAt)}</div>
         </div>
       </div>
 
       <div className="mb-5">
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate">
           Message Content
         </div>
-        <div className="whitespace-pre-wrap rounded-xl border border-white/[0.06] bg-black/30 p-4 text-sm leading-relaxed text-zinc-200">
+        <div className="whitespace-pre-wrap rounded-sm border border-frost bg-snow p-4 text-sm leading-relaxed text-ink">
           {approval.content}
         </div>
       </div>
 
       {actionError && (
-        <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <div className="mb-3 rounded-lg border border-frost bg-mist px-3 py-2 text-sm text-ink">
           {actionError}
         </div>
       )}
@@ -115,7 +115,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
         )}
 
         {approval.status === ApprovalStatus.APPROVED && (
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#22C55E]">
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink">
             <Check size={16} /> Approved
           </span>
         )}

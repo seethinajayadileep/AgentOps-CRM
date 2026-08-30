@@ -252,4 +252,27 @@ class LeadFinderServiceTest {
         assertEquals(1, result.getSkippedDuplicates());
         assertEquals(0, result.getFailed());
     }
+
+    @Test
+    void startRun_tlsFailure_storesSanitizedReasonWithReferenceId() throws Exception {
+        when(apifyClient.isConfigured()).thenReturn(true);
+        when(apifyClient.getDefaultActorId()).thenReturn("compass~crawler-google-places");
+        when(runRepository.save(any(LeadSourceRun.class))).thenAnswer(inv -> {
+            LeadSourceRun r = inv.getArgument(0);
+            if (r.getId() == null) r.setId(UUID.randomUUID());
+            return r;
+        });
+        when(apifyClient.startActorRun(any(), any(), any(), any(), any()))
+                .thenThrow(new ApifyClient.ApifyException(
+                        "Unexpected error starting Apify actor run",
+                        new javax.net.ssl.SSLHandshakeException("PKIX path building failed")));
+
+        LeadSourceRunResponse resp = service.startRun(request());
+
+        assertEquals(LeadSourceRunStatus.FAILED, resp.getStatus());
+        assertTrue(resp.getFailureReason().contains("could not connect to the provider"));
+        assertTrue(resp.getFailureReason().contains("Reference ERR-"));
+        assertFalse(resp.getFailureReason().toLowerCase().contains("pkix"));
+        assertFalse(resp.getFailureReason().contains("api.apify.com"));
+    }
 }

@@ -12,7 +12,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -208,6 +210,27 @@ public class VoiceCallController {
      * @param callId the ID of the call
      * @return the voice call details
      */
+    @GetMapping("/voice-calls/{callId}/recording")
+    public ResponseEntity<byte[]> getVoiceCallRecording(@PathVariable UUID callId) {
+        try {
+            VoiceCallService.RecordingPayload recording = voiceCallService.fetchRecording(callId);
+            MediaType contentType = recording.contentType() != null
+                ? recording.contentType()
+                : MediaType.parseMediaType("audio/mpeg");
+            return ResponseEntity.ok()
+                .contentType(contentType)
+                .contentLength(recording.data().length)
+                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                .header(HttpHeaders.CACHE_CONTROL, "private, max-age=120")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .body(recording.data());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        }
+    }
+
     @GetMapping("/voice-calls/{callId}")
     public ResponseEntity<ApiResponse<VoiceCallResponse>> getVoiceCall(@PathVariable UUID callId) {
         logger.info("Fetching voice call: {}", callId);

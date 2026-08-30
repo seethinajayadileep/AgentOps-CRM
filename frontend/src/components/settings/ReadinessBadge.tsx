@@ -7,15 +7,17 @@ interface ReadinessBadgeProps {
 }
 
 /**
- * Badge component for displaying ReadinessStatus with appropriate color.
- *
- * @version 0.1.0
- * Feature: Settings Page Implementation
- */
+  * Badge component for displaying ReadinessStatus with appropriate color.
+  *
+  * @version 0.1.0
+  * Feature: Settings Page Implementation
+  */
 export default function ReadinessBadge({ status, className = '' }: ReadinessBadgeProps) {
   const getColor = (status: ReadinessStatus): BadgeColor => {
     switch (status) {
       case ReadinessStatus.HEALTHY:
+        return 'green';
+      case ReadinessStatus.CONNECTED:
         return 'green';
       case ReadinessStatus.CONFIGURED:
         return 'blue';

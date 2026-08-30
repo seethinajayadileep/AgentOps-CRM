@@ -10,10 +10,11 @@ import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import LoadingState from '../components/ui/LoadingState';
 import StatusBadge from '../components/ui/StatusBadge';
+import { safeClientError } from '../util/safeClientError';
 
 /**
- * Lead Finder run results page (F-010).
- */
+  * Lead Finder run results page (F-010).
+  */
 export default function LeadFinderResults() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -88,7 +89,7 @@ export default function LeadFinderResults() {
       if (items.length === 1) setTargetBusinessId(items[0].id);
       setError(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to load results');
+      setError(safeClientError(err, 'Failed to load results'));
     } finally {
       setLoading(false);
     }
@@ -105,7 +106,7 @@ export default function LeadFinderResults() {
       await load(id);
       setSuccess('Results synced from Apify.');
     } catch (err: any) {
-      setError(err.message || 'Failed to sync results');
+      setError(safeClientError(err, 'Failed to sync results'));
     } finally {
       setSyncing(false);
       syncingRef.current = false;
@@ -120,7 +121,7 @@ export default function LeadFinderResults() {
       if (id) await load(id);
       setSuccess('Lead imported into CRM.');
     } catch (err: any) {
-      setError(err.message || 'Failed to import lead');
+      setError(safeClientError(err, 'Failed to import lead'));
     }
   };
 
@@ -131,7 +132,7 @@ export default function LeadFinderResults() {
       await leadFinderApi.rejectLead(leadId);
       if (id) await load(id);
     } catch (err: any) {
-      setError(err.message || 'Failed to reject lead');
+      setError(safeClientError(err, 'Failed to reject lead'));
     }
   };
 
@@ -148,7 +149,7 @@ export default function LeadFinderResults() {
       setSelected(new Set());
       if (id) await load(id);
     } catch (err: any) {
-      setError(err.message || 'Failed to bulk import');
+      setError(safeClientError(err, 'Failed to bulk import'));
     }
   };
 
@@ -186,7 +187,7 @@ export default function LeadFinderResults() {
         back={
           <button
             onClick={() => navigate('/lead-finder')}
-            className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-100"
+            className="inline-flex items-center gap-2 text-sm text-slate hover:text-ink"
           >
             <ArrowLeft size={18} />
             Back to Lead Finder
@@ -209,10 +210,10 @@ export default function LeadFinderResults() {
       />
 
       {error && (
-        <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div>
+        <div className="mb-6 rounded-sm border border-frost bg-mist p-4 text-ink">{error}</div>
       )}
       {success && (
-        <div className="mb-6 rounded-xl border border-[#22C55E]/30 bg-[#22C55E]/10 p-4 text-[#4ade80]">{success}</div>
+        <div className="mb-6 rounded-sm border border-frost bg-mist p-4 text-ink">{success}</div>
       )}
 
       {/* Import controls */}
@@ -249,7 +250,7 @@ export default function LeadFinderResults() {
         <div className="table-card">
           <div className="overflow-x-auto">
             <table className="min-w-full">
-              <thead className="border-b border-white/[0.06] bg-white/[0.02]">
+              <thead className="border-b border-frost bg-mist">
                 <tr>
                   <th className="px-4 py-3">
                     <input type="checkbox" onChange={toggleSelectAll} aria-label="Select all" className="accent-primary-500" />
@@ -258,7 +259,7 @@ export default function LeadFinderResults() {
                     (h) => (
                       <th
                         key={h}
-                        className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-400"
+                        className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate"
                       >
                         {h}
                       </th>
@@ -272,7 +273,7 @@ export default function LeadFinderResults() {
                   return (
                     <tr
                       key={lead.id}
-                      className="border-b border-white/[0.04] transition-colors duration-200 hover:bg-white/[0.03]"
+                      className="border-b border-frost transition-colors duration-200 hover:bg-mist"
                     >
                       <td className="px-4 py-4">
                         <input
@@ -284,21 +285,21 @@ export default function LeadFinderResults() {
                           className="accent-primary-500"
                         />
                       </td>
-                      <td className="px-4 py-4 text-sm font-medium text-zinc-100">{lead.businessName || '-'}</td>
-                      <td className="px-4 py-4 text-sm text-zinc-400">{lead.contactName || '-'}</td>
-                      <td className="px-4 py-4 text-sm text-zinc-400">{lead.email || '-'}</td>
-                      <td className="px-4 py-4 text-sm text-zinc-400">{lead.phone || '-'}</td>
-                      <td className="max-w-[160px] truncate px-4 py-4 text-sm text-zinc-400">
+                      <td className="px-4 py-4 text-sm font-medium text-ink">{lead.businessName || '-'}</td>
+                      <td className="px-4 py-4 text-sm text-slate">{lead.contactName || '-'}</td>
+                      <td className="px-4 py-4 text-sm text-slate">{lead.email || '-'}</td>
+                      <td className="px-4 py-4 text-sm text-slate">{lead.phone || '-'}</td>
+                      <td className="max-w-[160px] truncate px-4 py-4 text-sm text-slate">
                         {lead.websiteUrl ? (
-                          <a href={lead.websiteUrl} target="_blank" rel="noreferrer" className="text-blue-300 hover:underline">
+                          <a href={lead.websiteUrl} target="_blank" rel="noreferrer" className="text-ink hover:underline">
                             {lead.websiteUrl}
                           </a>
                         ) : (
                           '-'
                         )}
                       </td>
-                      <td className="px-4 py-4 text-sm text-zinc-400">{lead.location || '-'}</td>
-                      <td className="px-4 py-4 text-sm text-zinc-400">
+                      <td className="px-4 py-4 text-sm text-slate">{lead.location || '-'}</td>
+                      <td className="px-4 py-4 text-sm text-slate">
                         {lead.score != null ? Math.round(lead.score) : '-'}
                       </td>
                       <td className="whitespace-nowrap px-4 py-4">
@@ -310,20 +311,20 @@ export default function LeadFinderResults() {
                             <>
                               <button
                                 onClick={() => handleImport(lead.id)}
-                                className="font-medium text-[#4ade80] hover:text-[#22C55E]"
+                                className="font-medium text-ink hover:text-ink"
                               >
                                 Import
                               </button>
                               <button
                                 onClick={() => handleReject(lead.id)}
-                                className="font-medium text-red-400 hover:text-red-300"
+                                className="font-medium text-ink hover:text-ink"
                               >
                                 Reject
                               </button>
                             </>
                           )}
                           {lead.rawDataJson && (
-                            <button onClick={() => setRawViewer(lead)} className="text-zinc-500 hover:text-zinc-200">
+                            <button onClick={() => setRawViewer(lead)} className="text-slate hover:text-ink">
                               Raw
                             </button>
                           )}
@@ -341,7 +342,7 @@ export default function LeadFinderResults() {
       {/* Raw data modal */}
       {rawViewer && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 "
           onClick={() => setRawViewer(null)}
         >
           <div
@@ -349,14 +350,14 @@ export default function LeadFinderResults() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-ink">
                 Raw data · {rawViewer.businessName || rawViewer.id}
               </h3>
-              <button onClick={() => setRawViewer(null)} className="text-zinc-400 hover:text-zinc-100">
+              <button onClick={() => setRawViewer(null)} className="text-slate hover:text-ink">
                 ✕
               </button>
             </div>
-            <pre className="overflow-auto whitespace-pre-wrap rounded-xl border border-white/[0.06] bg-black/40 p-3 text-xs text-zinc-300">
+            <pre className="overflow-auto whitespace-pre-wrap rounded-sm border border-frost bg-snow p-3 text-xs text-ink">
               {(() => {
                 try {
                   return JSON.stringify(JSON.parse(rawViewer.rawDataJson || '{}'), null, 2);

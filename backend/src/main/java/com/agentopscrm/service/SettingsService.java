@@ -5,6 +5,8 @@ import com.agentopscrm.client.FirecrawlClient;
 import com.agentopscrm.client.VapiClient;
 import com.agentopscrm.dto.settings.*;
 import com.agentopscrm.entity.VoiceCall;
+import com.agentopscrm.util.AppVersion;
+import com.agentopscrm.util.SafeErrorMessages;
 import com.agentopscrm.entity.enums.ReadinessStatus;
 import com.agentopscrm.entity.enums.VoiceCallStatus;
 import com.agentopscrm.repository.*;
@@ -126,7 +128,7 @@ public class SettingsService {
     public SystemHealthResponse getSystemHealth() {
         SystemHealthResponse response = new SystemHealthResponse();
         response.setApplicationName(applicationName);
-        response.setApplicationVersion("0.1.0");
+        response.setApplicationVersion(AppVersion.VALUE);
         response.setActiveProfile(activeProfile);
         response.setEnvironment(activeProfile);
         response.setServerTime(Instant.now());
@@ -192,7 +194,7 @@ public class SettingsService {
         vapi.setName("Vapi");
         vapi.setPurpose("AI voice calls");
         vapi.setConfigured(isVapiConfigured());
-        vapi.setEnabled(vapiEnabled);
+        vapi.setEnabled(isVapiOperational());
         vapi.setStatus(checkVapiStatus());
         vapi.setMessage(getVapiMessage());
         vapi.setConfigDetails("Managed through environment configuration");
@@ -211,15 +213,15 @@ public class SettingsService {
         postgres.setLastChecked(Instant.now());
         integrations.add(postgres);
 
-        // Redis
+        // Redis is optional and unused by the CRM runtime — do not claim HEALTHY.
         IntegrationStatus redis = new IntegrationStatus();
         redis.setName("Redis");
-        redis.setPurpose("Cache and future workflow coordination");
-        redis.setConfigured(true);
-        redis.setEnabled(true);
-        redis.setStatus(checkRedisStatus());
-        redis.setMessage("Redis connection active");
-        redis.setConfigDetails("Managed through environment configuration");
+        redis.setPurpose("Optional cache (not used by current CRM features)");
+        redis.setConfigured(false);
+        redis.setEnabled(false);
+        redis.setStatus(ReadinessStatus.UNKNOWN);
+        redis.setMessage("Redis is not used by this application. Connection testing is not available.");
+        redis.setConfigDetails("No Redis client is wired into the CRM");
         redis.setLastChecked(Instant.now());
         integrations.add(redis);
 
@@ -280,7 +282,7 @@ public class SettingsService {
         boolean phoneNumberIdConfigured = isNonBlank(vapiPhoneNumberId);
         boolean webhookSecretConfigured = isNonBlank(vapiWebhookSecret);
         
-        response.setEnabled(vapiEnabled);
+        response.setEnabled(isVapiOperational());
         response.setApiKeyConfigured(apiKeyConfigured);
         response.setAssistantIdConfigured(assistantIdConfigured);
         response.setPhoneNumberIdConfigured(phoneNumberIdConfigured);
@@ -293,9 +295,14 @@ public class SettingsService {
         ReadinessStatus status;
         String message;
         
-        if (!vapiEnabled) {
+        if (isVapiConfigured()) {
+            status = ReadinessStatus.CONFIGURED;
+            message = vapiEnabled
+                    ? "Vapi configuration is present."
+                    : "Vapi credentials are present. Calls can be received; set VAPI_ENABLED=true for CRM-started outbound calls.";
+        } else if (!vapiEnabled) {
             status = ReadinessStatus.DISABLED;
-            message = "Voice calling is disabled. Set VAPI_ENABLED=true to enable.";
+            message = "Voice calling is disabled and no Vapi credentials are configured.";
         } else if (!apiKeyConfigured || !assistantIdConfigured || !phoneNumberIdConfigured) {
             status = ReadinessStatus.NOT_CONFIGURED;
             
@@ -356,51 +363,73 @@ public class SettingsService {
     public AgentsResponse getAgentsConfig() {
         List<AgentStatus> agents = new ArrayList<>();
 
-        // Support Agent
-        AgentStatus support = new AgentStatus("Support Agent", ReadinessStatus.HEALTHY, "Ready");
+        boolean openaiReady = embeddingService.isConfigured();
+
+        AgentStatus support = new AgentStatus(
+                "Support Agent",
+                openaiReady ? ReadinessStatus.HEALTHY : ReadinessStatus.NOT_CONFIGURED,
+                "Answers customer questions from the business knowledge base");
         support.setRequiredIntegration("OpenAI");
         support.setCurrentModel("gpt-4o-mini");
         support.setFallbackAvailable(false);
         agents.add(support);
 
-        // Evaluation Agent
-        AgentStatus evaluation = new AgentStatus("Evaluation Agent", ReadinessStatus.HEALTHY, "Ready");
+        AgentStatus evaluation = new AgentStatus(
+                "Evaluation Agent",
+                openaiReady ? ReadinessStatus.HEALTHY : ReadinessStatus.DEGRADED,
+                "Checks support answers for safety and quality");
         evaluation.setRequiredIntegration("OpenAI");
         evaluation.setCurrentModel("gpt-4o-mini");
         evaluation.setFallbackAvailable(true);
         agents.add(evaluation);
 
-        // Lead Qualification Agent
-        AgentStatus leadQual = new AgentStatus("Lead Qualification Agent", ReadinessStatus.HEALTHY, "Ready");
+        AgentStatus leadQual = new AgentStatus(
+                "Lead Qualification Agent",
+                openaiReady ? ReadinessStatus.HEALTHY : ReadinessStatus.NOT_CONFIGURED,
+                "Scores inbound conversations and creates CRM leads");
         leadQual.setRequiredIntegration("OpenAI");
         leadQual.setCurrentModel("gpt-4o-mini");
         leadQual.setFallbackAvailable(false);
         agents.add(leadQual);
 
-        // Follow-up Agent
-        AgentStatus followUp = new AgentStatus("Follow-up Agent", ReadinessStatus.HEALTHY, "Ready");
+        AgentStatus followUp = new AgentStatus(
+                "Follow-up Agent",
+                openaiReady ? ReadinessStatus.HEALTHY : ReadinessStatus.NOT_CONFIGURED,
+                "Drafts outbound follow-up messages for human approval");
         followUp.setRequiredIntegration("OpenAI");
         followUp.setCurrentModel("gpt-4o-mini");
         followUp.setFallbackAvailable(false);
         agents.add(followUp);
 
         // Website Research/Crawler
-        AgentStatus crawler = new AgentStatus("Website Research/Crawler", checkFirecrawlStatus(), "Firecrawl integration");
+        AgentStatus crawler = new AgentStatus(
+                "Website Research/Crawler",
+                checkFirecrawlStatus(),
+                "Crawls business websites to collect knowledge-base source pages");
         crawler.setRequiredIntegration("Firecrawl");
         agents.add(crawler);
 
         // Knowledge Base Builder
-        AgentStatus kb = new AgentStatus("Knowledge Base Builder", embeddingService.isConfigured() ? ReadinessStatus.HEALTHY : ReadinessStatus.NOT_CONFIGURED, "Embedding service");
+        AgentStatus kb = new AgentStatus(
+                "Knowledge Base Builder",
+                embeddingService.isConfigured() ? ReadinessStatus.HEALTHY : ReadinessStatus.NOT_CONFIGURED,
+                "Chunks crawled pages and stores embeddings for retrieval");
         kb.setRequiredIntegration("OpenAI");
         agents.add(kb);
 
         // Lead Finder Agent
-        AgentStatus leadFinder = new AgentStatus("Lead Finder Agent", checkApifyStatus(), getApifyMessage());
+        AgentStatus leadFinder = new AgentStatus(
+                "Lead Finder Agent",
+                checkApifyStatus(),
+                "Discovers outbound prospects through the Apify integration");
         leadFinder.setRequiredIntegration("Apify");
         agents.add(leadFinder);
 
         // Voice Agent
-        AgentStatus voice = new AgentStatus("Voice Agent", checkVapiStatus(), getVapiMessage());
+        AgentStatus voice = new AgentStatus(
+                "Voice Agent",
+                checkVapiStatus(),
+                "Places and transcribes AI voice calls through Vapi");
         voice.setRequiredIntegration("Vapi");
         agents.add(voice);
 
@@ -422,13 +451,13 @@ public class SettingsService {
     public SystemDiagnosticsResponse getSystemDiagnostics() {
         SystemDiagnosticsResponse response = new SystemDiagnosticsResponse();
         response.setApplicationName(applicationName);
-        response.setApplicationVersion("0.1.0");
-        response.setBackendVersion("0.1.0");
+        response.setApplicationVersion(AppVersion.VALUE);
+        response.setBackendVersion(AppVersion.VALUE);
         response.setActiveProfile(activeProfile);
         response.setApiBasePath("/api");
         response.setServerTimezone(ZoneId.systemDefault().getId());
         response.setDatabaseType("PostgreSQL");
-        response.setRedisConfigured(true);
+        response.setRedisConfigured(false);
         response.setFlywayEnabled(flywayEnabled);
         response.setHibernateSchemaMode(hibernateDdlAuto);
         response.setVectorStoreStrategy(vectorStoreStrategy);
@@ -478,12 +507,14 @@ public class SettingsService {
                     result.setSuccess(true);
                     result.setStatus(ReadinessStatus.HEALTHY);
                     result.setMessage("Database connection successful");
+                    result.setCheckType("LIVE");
                     break;
 
                 case "redis":
-                    result.setSuccess(true);
-                    result.setStatus(ReadinessStatus.HEALTHY);
-                    result.setMessage("Redis connection test not implemented yet");
+                    result.setSuccess(false);
+                    result.setStatus(ReadinessStatus.UNKNOWN);
+                    result.setMessage("Redis is not used by this application. Status remains UNKNOWN / NOT USED.");
+                    result.setCheckType("NOT_USED");
                     break;
 
                 case "openai":
@@ -491,10 +522,18 @@ public class SettingsService {
                         result.setSuccess(false);
                         result.setStatus(ReadinessStatus.NOT_CONFIGURED);
                         result.setMessage("OpenAI API key not configured");
+                        result.setCheckType("LIVE");
                     } else {
-                        result.setSuccess(true);
-                        result.setStatus(ReadinessStatus.CONFIGURED);
-                        result.setMessage("OpenAI API key configured (full test not implemented)");
+                        try {
+                            embeddingService.ping();
+                            result.setSuccess(true);
+                            result.setStatus(ReadinessStatus.CONNECTED);
+                            result.setMessage("CONNECTED — authenticated with OpenAI");
+                            result.setCheckType("LIVE");
+                        } catch (Exception e) {
+                            applyProviderFailure(result, e);
+                            result.setCheckType("LIVE");
+                        }
                     }
                     break;
 
@@ -503,10 +542,18 @@ public class SettingsService {
                         result.setSuccess(false);
                         result.setStatus(ReadinessStatus.NOT_CONFIGURED);
                         result.setMessage("Firecrawl API key not configured");
+                        result.setCheckType("LIVE");
                     } else {
-                        result.setSuccess(true);
-                        result.setStatus(ReadinessStatus.CONFIGURED);
-                        result.setMessage("Firecrawl API key configured (full test not implemented)");
+                        try {
+                            firecrawlClient.ping();
+                            result.setSuccess(true);
+                            result.setStatus(ReadinessStatus.CONNECTED);
+                            result.setMessage("CONNECTED — authenticated with Firecrawl");
+                            result.setCheckType("LIVE");
+                        } catch (Exception e) {
+                            applyProviderFailure(result, e);
+                            result.setCheckType("LIVE");
+                        }
                     }
                     break;
 
@@ -516,9 +563,27 @@ public class SettingsService {
                         result.setStatus(apifyEnabled ? ReadinessStatus.NOT_CONFIGURED : ReadinessStatus.DISABLED);
                         result.setMessage(getApifyMessage());
                     } else {
-                        result.setSuccess(true);
-                        result.setStatus(ReadinessStatus.CONFIGURED);
-                        result.setMessage("Apify configured and enabled");
+                        try {
+                            apifyClient.ping();
+                            result.setSuccess(true);
+                            result.setStatus(ReadinessStatus.HEALTHY);
+                            result.setMessage("CONNECTED — authenticated with Apify");
+                            result.setCheckType("LIVE");
+                        } catch (ApifyClient.ApifyException e) {
+                            if (e.unauthorized) {
+                                result.setSuccess(false);
+                                result.setStatus(ReadinessStatus.ERROR);
+                                result.setMessage("FAILED — Apify rejected the stored credentials");
+                            } else if (SafeErrorMessages.isTlsOrConnectivity(e)) {
+                                result.setSuccess(false);
+                                result.setStatus(ReadinessStatus.DEGRADED);
+                                result.setMessage("DEGRADED — could not complete a TLS connection to Apify");
+                            } else {
+                                result.setSuccess(false);
+                                result.setStatus(ReadinessStatus.ERROR);
+                                result.setMessage("FAILED — " + SafeErrorMessages.classify(e));
+                            }
+                        }
                     }
                     break;
 
@@ -527,10 +592,18 @@ public class SettingsService {
                         result.setSuccess(false);
                         result.setStatus(vapiEnabled ? ReadinessStatus.NOT_CONFIGURED : ReadinessStatus.DISABLED);
                         result.setMessage(getVapiMessage());
+                        result.setCheckType("LIVE");
                     } else {
-                        result.setSuccess(true);
-                        result.setStatus(ReadinessStatus.CONFIGURED);
-                        result.setMessage("Vapi configured and enabled");
+                        try {
+                            vapiClient.pingAssistant(vapiAssistantId);
+                            result.setSuccess(true);
+                            result.setStatus(ReadinessStatus.CONNECTED);
+                            result.setMessage("CONNECTED — authenticated with Vapi (assistant lookup only; no call placed)");
+                            result.setCheckType("LIVE");
+                        } catch (Exception e) {
+                            applyProviderFailure(result, e);
+                            result.setCheckType("LIVE");
+                        }
                     }
                     break;
 
@@ -543,7 +616,7 @@ public class SettingsService {
             log.error("Integration test failed for {}", integrationName, e);
             result.setSuccess(false);
             result.setStatus(ReadinessStatus.ERROR);
-            result.setMessage("Test failed: " + sanitizeErrorMessage(e.getMessage()));
+            result.setMessage("Test failed: " + SafeErrorMessages.classify(e));
         }
 
         result.setDurationMs(System.currentTimeMillis() - startTime);
@@ -562,6 +635,22 @@ public class SettingsService {
         }
     }
 
+    private void applyProviderFailure(IntegrationTestResult result, Exception e) {
+        if (SafeErrorMessages.isTlsOrConnectivity(e)) {
+            result.setSuccess(false);
+            result.setStatus(ReadinessStatus.DEGRADED);
+            result.setMessage("DEGRADED — could not complete a TLS connection to the provider");
+        } else if (e.getMessage() != null && e.getMessage().toLowerCase(Locale.ROOT).contains("credential")) {
+            result.setSuccess(false);
+            result.setStatus(ReadinessStatus.ERROR);
+            result.setMessage("FAILED — " + SafeErrorMessages.CREDENTIALS);
+        } else {
+            result.setSuccess(false);
+            result.setStatus(ReadinessStatus.ERROR);
+            result.setMessage("FAILED — " + SafeErrorMessages.classify(e));
+        }
+    }
+
     private void testDatabase() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
             if (!conn.isValid(2)) {
@@ -571,16 +660,7 @@ public class SettingsService {
     }
 
     private ReadinessStatus checkRedisStatus() {
-        // Redis is configured if the application started successfully
-        // A more sophisticated check would require direct Redis connection attempt
-        try {
-            var health = healthEndpoint.health();
-            // If the actuator responds, Redis is likely configured
-            return ReadinessStatus.CONFIGURED;
-        } catch (Exception e) {
-            log.error("Redis health check failed", e);
-            return ReadinessStatus.ERROR;
-        }
+        return ReadinessStatus.UNKNOWN;
     }
 
     private ReadinessStatus checkOpenAIStatus() {
@@ -599,24 +679,30 @@ public class SettingsService {
     }
 
     private ReadinessStatus checkVapiStatus() {
-        if (!vapiEnabled) {
-            return ReadinessStatus.DISABLED;
+        if (isVapiConfigured()) {
+            return ReadinessStatus.CONFIGURED;
         }
-        return isVapiConfigured() ? ReadinessStatus.CONFIGURED : ReadinessStatus.NOT_CONFIGURED;
+        return vapiEnabled ? ReadinessStatus.NOT_CONFIGURED : ReadinessStatus.DISABLED;
     }
 
     private boolean isVapiConfigured() {
         return isNonBlank(vapiApiKey) && isNonBlank(vapiAssistantId) && isNonBlank(vapiPhoneNumberId);
     }
 
+    private boolean isVapiOperational() {
+        return isVapiConfigured();
+    }
+
     private String getVapiMessage() {
+        if (isVapiConfigured()) {
+            return vapiEnabled
+                    ? "Vapi configured and enabled"
+                    : "Vapi credentials are present. Inbound and existing calls work; enable VAPI_ENABLED for CRM-started outbound calls.";
+        }
         if (!vapiEnabled) {
             return "Vapi disabled";
         }
-        if (!isVapiConfigured()) {
-            return "Vapi enabled but configuration incomplete";
-        }
-        return "Vapi configured and enabled";
+        return "Vapi enabled but configuration incomplete";
     }
 
     private String getApifyMessage() {

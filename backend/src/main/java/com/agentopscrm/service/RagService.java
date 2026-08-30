@@ -305,6 +305,12 @@ public class RagService {
             throw new RagSearchException("Answer generation failed: " + e.getMessage(), e);
         }
 
+        if ("WEAK_CONTEXT".equals(status)
+                || AnswerService.INSUFFICIENT_CONTEXT_ANSWER.equals(answer == null ? "" : answer.trim())) {
+            sources = Collections.emptyList();
+            status = "WEAK_CONTEXT";
+        }
+
         logAnswer(business, businessId, query, status, grounding.size(), rejectionReasons);
         return new AnswerResult(businessId.toString(), search.getQuery(), answer,
                 sources, results, limit, status, createDiagnostics(business, search, grounding, rejectionReasons));

@@ -8,6 +8,7 @@ import com.agentopscrm.dto.ImportDiscoveredLeadRequest;
 import com.agentopscrm.dto.LeadSourceRunResponse;
 import com.agentopscrm.dto.StartLeadFinderRunRequest;
 import com.agentopscrm.service.LeadFinderService;
+import com.agentopscrm.util.SafeErrorMessages;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,8 +69,10 @@ public class LeadFinderController {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
             logger.error("Failed to start lead discovery run", e);
+            String errorId = SafeErrorMessages.newId();
+            logger.error("Lead finder start failed [{}]", errorId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Failed to start lead discovery run: " + e.getMessage()));
+                .body(ApiResponse.error(SafeErrorMessages.forClient(e, errorId)));
         }
     }
 
@@ -81,9 +84,7 @@ public class LeadFinderController {
         try {
             return ResponseEntity.ok(ApiResponse.success(leadFinderService.listRuns()));
         } catch (Exception e) {
-            logger.error("Failed to list lead finder runs", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Failed to list runs: " + e.getMessage()));
+            return unexpectedError("Failed to list lead finder runs", e);
         }
     }
 
@@ -97,9 +98,7 @@ public class LeadFinderController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
-            logger.error("Failed to get run {}", id, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Failed to get run: " + e.getMessage()));
+            return unexpectedError("Failed to get run " + id, e);
         }
     }
 
@@ -113,9 +112,7 @@ public class LeadFinderController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
-            logger.error("Failed to get results for run {}", id, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Failed to get results: " + e.getMessage()));
+            return unexpectedError("Failed to get results for run " + id, e);
         }
     }
 
@@ -134,9 +131,10 @@ public class LeadFinderController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
-            logger.error("Failed to sync run {}", id, e);
+            String errorId = SafeErrorMessages.newId();
+            logger.error("Failed to sync run {} [{}]", id, errorId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Failed to sync run: " + e.getMessage()));
+                .body(ApiResponse.error(SafeErrorMessages.forClient(e, errorId)));
         }
     }
 
@@ -158,9 +156,7 @@ public class LeadFinderController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
-            logger.error("Failed to import discovered lead {}", id, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Failed to import discovered lead: " + e.getMessage()));
+            return unexpectedError("Failed to import discovered lead " + id, e);
         }
     }
 
@@ -178,9 +174,7 @@ public class LeadFinderController {
             return ResponseEntity.ok(ApiResponse.success(result,
                 "Imported " + result.getImported() + " of " + result.getRequested() + " leads"));
         } catch (Exception e) {
-            logger.error("Failed bulk import", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Failed bulk import: " + e.getMessage()));
+            return unexpectedError("Failed bulk import", e);
         }
     }
 
@@ -196,10 +190,15 @@ public class LeadFinderController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
-            logger.error("Failed to reject discovered lead {}", id, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Failed to reject discovered lead: " + e.getMessage()));
+            return unexpectedError("Failed to reject discovered lead " + id, e);
         }
+    }
+
+    private <T> ResponseEntity<ApiResponse<T>> unexpectedError(String logMessage, Exception error) {
+        String errorId = SafeErrorMessages.newId();
+        logger.error("{} [{}]", logMessage, errorId, error);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error(SafeErrorMessages.forClient(error, errorId)));
     }
 
     /**

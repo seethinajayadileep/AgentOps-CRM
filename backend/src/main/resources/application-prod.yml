@@ -8,9 +8,9 @@ spring:
   # Railway provides: PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD
 # Or use custom: DB_URL, DB_USER, DB_PASSWORD
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:railway}}
+    username: ${DB_USER:${PGUSER:postgres}}
+    password: ${DB_PASSWORD:${PGPASSWORD:}}
     hikari:
       # Railway Starter: 5 max connections for small instance
       maximum-pool-size: ${DB_POOL_MAX:5}

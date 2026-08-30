@@ -133,6 +133,33 @@ public class EmbeddingService {
     }
 
     /**
+     * Lightweight authenticated GET against /v1/models. Does not generate embeddings.
+     */
+    public void ping() throws EmbeddingException {
+        if (!isConfigured()) {
+            throw new EmbeddingException("OPENAI_API_KEY is not configured");
+        }
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setBearerAuth(apiKey);
+        try {
+            var response = restTemplate.exchange(
+                    "https://api.openai.com/v1/models",
+                    org.springframework.http.HttpMethod.GET,
+                    new org.springframework.http.HttpEntity<>(headers),
+                    Map.class
+            );
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new EmbeddingException("Unexpected status: " + response.getStatusCode().value());
+            }
+        } catch (EmbeddingException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("OpenAI health check failed", e);
+            throw new EmbeddingException("OpenAI health check failed", e);
+        }
+    }
+
+    /**
      * Get embedding dimension.
      */
     public int getEmbeddingDimension() {

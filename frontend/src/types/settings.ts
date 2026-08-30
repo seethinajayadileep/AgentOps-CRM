@@ -10,6 +10,7 @@
  */
 export enum ReadinessStatus {
   HEALTHY = 'HEALTHY',
+  CONNECTED = 'CONNECTED',
   CONFIGURED = 'CONFIGURED',
   NOT_CONFIGURED = 'NOT_CONFIGURED',
   DISABLED = 'DISABLED',
@@ -110,9 +111,12 @@ export interface VoiceConfigResponse {
  * Individual agent status.
  */
 export interface AgentStatus {
-  name: string;
+  name?: string;
+  agentName?: string;
   status: ReadinessStatus;
-  message: string;
+  message?: string;
+  statusMessage?: string;
+  purpose?: string;
   requiredIntegration?: string;
   currentModel?: string;
   fallbackAvailable?: boolean;
@@ -175,4 +179,5 @@ export interface IntegrationTestResult {
   message: string;
   testedAt: string;
   durationMs: number;
+  checkType?: string;
 }

@@ -61,6 +61,8 @@ public interface VoiceCallRepository extends JpaRepository<VoiceCall, UUID> {
 
     long countByStatus(VoiceCallStatus status);
 
+    long countByCreatedAtBefore(LocalDateTime cutoff);
+
     @Query("SELECT AVG(v.durationSeconds) FROM VoiceCall v WHERE v.business.id = :businessId AND v.status = 'COMPLETED'")
     Double getAverageDuration(@Param("businessId") UUID businessId);
 }

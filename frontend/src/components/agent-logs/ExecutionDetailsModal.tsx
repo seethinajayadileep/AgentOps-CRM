@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { X, Copy, CheckCircle, ExternalLink } from 'lucide-react';
+import { Copy, CheckCircle, ExternalLink } from 'lucide-react';
 import { AgentLog, AgentActionStatus } from '../../types/agentLog';
 import StatusBadge from '../ui/StatusBadge';
+import Modal from '../ui/Modal';
 import { Link } from 'react-router-dom';
 
 /**
- * Modal for displaying agent execution details.
- *
- * @version 0.3.0
- * Feature: F-012 - Agent Logs Observability
- */
+  * Modal for displaying agent execution details.
+  *
+  * @version 0.3.0
+  * Feature: F-012 - Agent Logs Observability
+  */
 
 interface ExecutionDetailsModalProps {
   log: AgentLog;
@@ -65,32 +66,18 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
   const hasError = log.status === AgentActionStatus.ERROR || log.status === AgentActionStatus.FAILED;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl border border-white/10 bg-[#18181B] shadow-2xl">
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#18181B]/95 backdrop-blur-xl px-6 py-4">
-          <div>
-            <h2 className="text-xl font-bold text-white">Execution Details</h2>
-            <p className="text-sm text-zinc-400 mt-0.5">{formatActionLabel(log.action)}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Content */}
+    <Modal title="Execution Details" onClose={onClose} className="max-w-4xl p-0">
+      <div className="relative max-h-[90vh] overflow-hidden">
+        <p className="border-b border-frost px-6 py-2 text-sm text-slate">{formatActionLabel(log.action)}</p>
         <div className="overflow-y-auto max-h-[calc(90vh-80px)]">
           {/* Tabs */}
-          <div className="sticky top-0 z-10 flex gap-1 border-b border-white/10 bg-[#18181B]/95 backdrop-blur-xl px-6 pt-4">
+          <div className="sticky top-0 z-10 flex gap-1 border-b border-frost bg-snow px-6 pt-4">
             <button
               onClick={() => setActiveTab('overview')}
               className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all ${
                 activeTab === 'overview'
-                  ? 'bg-white/5 text-white border-b-2 border-[#8B5CF6]'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-mist text-ink border-b-2 border-ink'
+                  : 'text-slate hover:text-ink hover:bg-mist'
               }`}
             >
               Overview
@@ -99,8 +86,8 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
               onClick={() => setActiveTab('input')}
               className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all ${
                 activeTab === 'input'
-                  ? 'bg-white/5 text-white border-b-2 border-[#8B5CF6]'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-mist text-ink border-b-2 border-ink'
+                  : 'text-slate hover:text-ink hover:bg-mist'
               }`}
             >
               Input
@@ -109,8 +96,8 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
               onClick={() => setActiveTab('output')}
               className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all ${
                 activeTab === 'output'
-                  ? 'bg-white/5 text-white border-b-2 border-[#8B5CF6]'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-mist text-ink border-b-2 border-ink'
+                  : 'text-slate hover:text-ink hover:bg-mist'
               }`}
             >
               Output
@@ -120,8 +107,8 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
                 onClick={() => setActiveTab('error')}
                 className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all ${
                   activeTab === 'error'
-                    ? 'bg-white/5 text-white border-b-2 border-red-500'
-                    : 'text-red-400 hover:text-red-300 hover:bg-white/5'
+                    ? 'bg-mist text-ink border-b-2 border-red-500'
+                    : 'text-ink hover:text-ink hover:bg-mist'
                 }`}
               >
                 Error
@@ -137,7 +124,7 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
                 <div>
                   <label className="label-dark">Execution ID</label>
                   <div className="flex items-center gap-2 mt-1">
-                    <code className="flex-1 text-sm text-zinc-300 bg-black/30 px-3 py-2 rounded-lg font-mono">
+                    <code className="flex-1 text-sm text-ink bg-snow px-3 py-2 rounded-lg font-mono">
                       {log.id}
                     </code>
                     <button
@@ -154,19 +141,19 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="label-dark">Timestamp</label>
-                    <p className="text-base text-white mt-1">{formatTimestamp(log.createdAt)}</p>
+                    <p className="mt-1 text-[16px] text-ink">{formatTimestamp(log.createdAt)}</p>
                   </div>
                   <div>
                     <label className="label-dark">Duration</label>
-                    <p className="text-base text-white mt-1">{formatDuration(log.durationMs)}</p>
+                    <p className="mt-1 text-[16px] text-ink">{formatDuration(log.durationMs)}</p>
                   </div>
                   <div>
                     <label className="label-dark">Agent</label>
-                    <p className="text-base text-white mt-1">{log.agentName}</p>
+                    <p className="mt-1 text-[16px] text-ink">{log.agentName}</p>
                   </div>
                   <div>
                     <label className="label-dark">Action</label>
-                    <p className="text-base text-white mt-1">{formatActionLabel(log.action)}</p>
+                    <p className="mt-1 text-[16px] text-ink">{formatActionLabel(log.action)}</p>
                   </div>
                   <div>
                     <label className="label-dark">Status</label>
@@ -184,7 +171,7 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
                       {log.businessId && (
                         <Link
                           to={`/businesses/${log.businessId}`}
-                          className="flex items-center gap-2 text-sm text-[#8B5CF6] hover:text-[#A78BFA] transition-colors"
+                          className="flex items-center gap-2 text-sm text-ink hover:text-slate transition-colors"
                         >
                           <ExternalLink size={14} />
                           Business: {log.businessName || log.businessId}
@@ -193,14 +180,14 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
                       {log.leadId && (
                         <Link
                           to={`/leads/${log.leadId}`}
-                          className="flex items-center gap-2 text-sm text-[#8B5CF6] hover:text-[#A78BFA] transition-colors"
+                          className="flex items-center gap-2 text-sm text-ink hover:text-slate transition-colors"
                         >
                           <ExternalLink size={14} />
                           Lead: {log.leadName || log.leadId}
                         </Link>
                       )}
                       {log.conversationId && (
-                        <p className="flex items-center gap-2 text-sm text-zinc-400">
+                        <p className="flex items-center gap-2 text-sm text-slate">
                           <ExternalLink size={14} />
                           Conversation: {log.conversationId}
                         </p>
@@ -215,11 +202,11 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
               <div>
                 <label className="label-dark mb-2">Input Data</label>
                 {log.inputJson ? (
-                  <pre className="text-xs text-zinc-300 bg-black/30 p-4 rounded-lg overflow-auto max-h-96 font-mono whitespace-pre-wrap break-words">
+                  <pre className="text-xs text-ink bg-snow p-4 rounded-lg overflow-auto max-h-96 font-mono whitespace-pre-wrap break-words">
                     {tryFormatJson(log.inputJson) || 'No input data'}
                   </pre>
                 ) : (
-                  <p className="text-sm text-zinc-500 italic">No input data recorded</p>
+                  <p className="text-sm text-slate italic">No input data recorded</p>
                 )}
               </div>
             )}
@@ -228,11 +215,11 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
               <div>
                 <label className="label-dark mb-2">Output Data</label>
                 {log.outputJson ? (
-                  <pre className="text-xs text-zinc-300 bg-black/30 p-4 rounded-lg overflow-auto max-h-96 font-mono whitespace-pre-wrap break-words">
+                  <pre className="text-xs text-ink bg-snow p-4 rounded-lg overflow-auto max-h-96 font-mono whitespace-pre-wrap break-words">
                     {tryFormatJson(log.outputJson) || 'No output data'}
                   </pre>
                 ) : (
-                  <p className="text-sm text-zinc-500 italic">No output data recorded</p>
+                  <p className="text-sm text-slate italic">No output data recorded</p>
                 )}
               </div>
             )}
@@ -241,18 +228,27 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
               <div>
                 <label className="label-dark mb-2">Error Details</label>
                 {log.errorMessage ? (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-                    <p className="text-sm text-red-300 whitespace-pre-wrap font-mono">{log.errorMessage}</p>
+                  <div className="bg-mist border border-frost rounded-lg p-4">
+                    <p className="text-sm text-ink whitespace-pre-wrap font-mono">{log.errorMessage}</p>
+                    {log.errorCategory && (
+                      <p className="mt-3 text-sm text-slate">Category: {log.errorCategory}</p>
+                    )}
+                    {log.correlationId && (
+                      <p className="mt-1 text-sm text-slate">Reference: {log.correlationId}</p>
+                    )}
+                    {log.recommendedAction && (
+                      <p className="mt-2 text-sm text-ink">{log.recommendedAction}</p>
+                    )}
                   </div>
                 ) : (
-                  <p className="text-sm text-zinc-500 italic">No error message available</p>
+                  <p className="text-sm text-slate italic">No error message available</p>
                 )}
               </div>
             )}
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

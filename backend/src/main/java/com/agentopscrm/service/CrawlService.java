@@ -2,29 +2,29 @@ package com.agentopscrm.service;
 
 import com.agentopscrm.client.FirecrawlClient;
 import com.agentopscrm.client.FirecrawlClient.FirecrawlException;
-import com.agentopscrm.entity.AgentLog;
 import com.agentopscrm.entity.Business;
 import com.agentopscrm.entity.Document;
 import com.agentopscrm.entity.enums.AgentActionStatus;
 import com.agentopscrm.entity.enums.CrawlStatus;
 import com.agentopscrm.exception.BusinessNotFoundException;
-import com.agentopscrm.repository.AgentLogRepository;
 import com.agentopscrm.repository.BusinessRepository;
 import com.agentopscrm.repository.DocumentRepository;
+import com.agentopscrm.util.SafeErrorMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * Service for website crawling operations.
- *
- * @author AgentOps Team
- * @version 0.2.0
+ * Website crawl orchestration. Status is committed immediately; Firecrawl work
+ * runs on {@link CrawlAsyncRunner}.
  */
 @Service
 public class CrawlService {
@@ -34,62 +34,83 @@ public class CrawlService {
 
     private final BusinessRepository businessRepository;
     private final DocumentRepository documentRepository;
-    private final AgentLogRepository agentLogRepository;
+    private final AuditLogService auditLogService;
     private final FirecrawlClient firecrawlClient;
+    private final CrawlStateWriter crawlStateWriter;
+    private final CrawlAsyncRunner crawlAsyncRunner;
 
     public CrawlService(
             BusinessRepository businessRepository,
             DocumentRepository documentRepository,
-            AgentLogRepository agentLogRepository,
-            FirecrawlClient firecrawlClient) {
+            AuditLogService auditLogService,
+            FirecrawlClient firecrawlClient,
+            CrawlStateWriter crawlStateWriter,
+            @Lazy CrawlAsyncRunner crawlAsyncRunner) {
         this.businessRepository = businessRepository;
         this.documentRepository = documentRepository;
-        this.agentLogRepository = agentLogRepository;
+        this.auditLogService = auditLogService;
         this.firecrawlClient = firecrawlClient;
+        this.crawlStateWriter = crawlStateWriter;
+        this.crawlAsyncRunner = crawlAsyncRunner;
     }
 
     /**
-     * Start crawling a business's website.
-     *
-     * @param businessId The business ID
-     * @return Crawl result with status and message
-     * @throws BusinessNotFoundException if business not found
+     * Accept a crawl request, persist QUEUED/CRAWLING, and return immediately.
      */
-    @Transactional
     public CrawlResult startCrawl(UUID businessId) throws BusinessNotFoundException {
         Business business = businessRepository.findById(businessId)
                 .orElseThrow(() -> new BusinessNotFoundException("Business not found: " + businessId));
 
-        // Check if already crawling
-        if (business.getCrawlStatus() == CrawlStatus.IN_PROGRESS) {
-            return new CrawlResult(false, "Crawl already in progress", CrawlStatus.IN_PROGRESS);
+        if (business.getCrawlStatus() != null && business.getCrawlStatus().isActive()) {
+            return new CrawlResult(false, "Crawl already in progress",
+                    business.getCrawlStatus().toPublicStatus(), business);
         }
 
-        // Check if Firecrawl is configured
         if (!firecrawlClient.isConfigured()) {
-            business.setCrawlStatus(CrawlStatus.FAILED);
-            businessRepository.save(business);
-            logAgentAction("Crawler", "START_CRAWL", businessId.toString(),
-                    "{\"websiteUrl\":\"" + business.getWebsiteUrl() + "\"}",
-                    "{\"error\":\"FIRECRAWL_API_KEY not configured\"}",
-                    AgentActionStatus.ERROR);
-            return new CrawlResult(false, "Firecrawl API key not configured. Please set FIRECRAWL_API_KEY.", CrawlStatus.FAILED);
+            crawlStateWriter.markFailed(businessId, "Firecrawl is not configured.");
+            auditLogService.logAgentAction(businessId, "Crawler", "CRAWL_FAILED",
+                    "{\"limit\":" + MAX_PAGES_TO_CRAWL + "}",
+                    "{\"status\":\"FAILED\",\"reason\":\"NOT_CONFIGURED\"}",
+                    AgentActionStatus.ERROR, 0L);
+            Business failed = businessRepository.findById(businessId).orElse(business);
+            return new CrawlResult(false, "Firecrawl is not configured. Set FIRECRAWL_API_KEY in Settings.",
+                    CrawlStatus.FAILED, failed);
         }
 
-        // Set status to crawling
-        business.setCrawlStatus(CrawlStatus.IN_PROGRESS);
-        businessRepository.save(business);
+        crawlStateWriter.markQueued(businessId);
+        crawlStateWriter.markCrawling(businessId);
+        auditLogService.logAgentAction(businessId, "Crawler", "CRAWL_STARTED",
+                "{\"limit\":" + MAX_PAGES_TO_CRAWL + "}",
+                "{\"status\":\"CRAWLING\"}",
+                AgentActionStatus.SUCCESS, 0L);
 
-        logAgentAction("Crawler", "START_CRAWL", businessId.toString(),
-                "{\"websiteUrl\":\"" + business.getWebsiteUrl() + "\",\"limit\":" + MAX_PAGES_TO_CRAWL + "}",
-                "{\"status\":\"started\"}",
-                AgentActionStatus.SUCCESS);
+        crawlAsyncRunner.runCrawl(businessId);
+
+        Business current = businessRepository.findById(businessId).orElse(business);
+        return new CrawlResult(true, "Crawl started. Progress is saved and survives page refresh.",
+                CrawlStatus.CRAWLING, current);
+    }
+
+    /**
+     * Background crawl body. Must not be called from the HTTP thread.
+     */
+    public void performCrawl(UUID businessId) {
+        long start = System.currentTimeMillis();
+        Business business = businessRepository.findById(businessId).orElse(null);
+        if (business == null) {
+            log.warn("Crawl skipped; business {} no longer exists", businessId);
+            return;
+        }
 
         try {
-            // Execute crawl
             FirecrawlClient.FirecrawlCrawlResponse response = firecrawlClient.executeCrawl(
                     business.getWebsiteUrl(),
-                    MAX_PAGES_TO_CRAWL
+                    MAX_PAGES_TO_CRAWL,
+                    snapshot -> {
+                        int total = snapshot.getTotal() != null ? snapshot.getTotal() : MAX_PAGES_TO_CRAWL;
+                        int completed = snapshot.getCompleted() != null ? snapshot.getCompleted() : 0;
+                        crawlStateWriter.markProgress(businessId, completed, total);
+                    }
             );
 
             int pagesSaved = 0;
@@ -102,87 +123,67 @@ public class CrawlService {
                     String title = getTitleFromPageData(pageData);
                     String content = pageData.getMarkdown();
 
-                    // Skip if URL already exists
                     if (existingUrls.contains(url)) {
                         pagesSkipped++;
                         continue;
                     }
 
-                    // Save document
                     Document document = new Document();
                     document.setBusiness(business);
                     document.setUrl(url);
                     document.setTitle(title);
                     document.setContent(content);
                     document.setStatus(CrawlStatus.COMPLETED);
-
                     documentRepository.save(document);
                     pagesSaved++;
                     existingUrls.add(url);
-
-                    // Log each page saved (sample - don't log every page if many)
-                    if (pagesSaved <= 5 || pagesSaved % 10 == 0) {
-                        log.info("Saved page {}/{}: {}", pagesSaved, response.getTotal(), url);
-                    }
+                    crawlStateWriter.markProgress(businessId, pagesSaved, response.getTotal() != null
+                            ? response.getTotal() : pagesSaved + pagesSkipped);
                 }
             }
 
-            // Update business status
-            business.setCrawlStatus(CrawlStatus.COMPLETED);
-            businessRepository.save(business);
-
-            // Log completion
-            logAgentAction("Crawler", "CRAWL_COMPLETED", businessId.toString(),
-                    "{\"websiteUrl\":\"" + business.getWebsiteUrl() + "\"}",
-                    "{\"pagesSaved\":" + pagesSaved + ",\"pagesSkipped\":" + pagesSkipped + "}",
-                    AgentActionStatus.SUCCESS);
-
-            String message = String.format("Crawl completed. %d pages saved, %d duplicates skipped.",
-                    pagesSaved, pagesSkipped);
-            return new CrawlResult(true, message, CrawlStatus.COMPLETED);
+            crawlStateWriter.markCompleted(businessId, pagesSaved, pagesSkipped);
+            long duration = System.currentTimeMillis() - start;
+            auditLogService.logAgentAction(businessId, "Crawler", "CRAWL_COMPLETED",
+                    "{\"limit\":" + MAX_PAGES_TO_CRAWL + "}",
+                    "{\"status\":\"COMPLETED\",\"pagesSaved\":" + pagesSaved
+                            + ",\"pagesSkipped\":" + pagesSkipped + ",\"durationMs\":" + duration + "}",
+                    AgentActionStatus.SUCCESS, duration);
 
         } catch (FirecrawlException e) {
             log.error("Firecrawl error for business {}", businessId, e);
-
-            // Update business status to failed
-            business.setCrawlStatus(CrawlStatus.FAILED);
-            businessRepository.save(business);
-
-            // Log failure
-            logAgentAction("Crawler", "CRAWL_FAILED", businessId.toString(),
-                    "{\"websiteUrl\":\"" + business.getWebsiteUrl() + "\"}",
-                    "{\"error\":\"" + e.getMessage() + "\"}",
-                    AgentActionStatus.ERROR);
-
-            return new CrawlResult(false, "Crawl failed: " + e.getMessage(), CrawlStatus.FAILED);
-
+            failOnce(businessId, start, e);
         } catch (Exception e) {
             log.error("Unexpected error during crawl for business {}", businessId, e);
-
-            // Update business status to failed
-            business.setCrawlStatus(CrawlStatus.FAILED);
-            businessRepository.save(business);
-
-            // Log failure
-            logAgentAction("Crawler", "CRAWL_FAILED", businessId.toString(),
-                    "{\"websiteUrl\":\"" + business.getWebsiteUrl() + "\"}",
-                    "{\"error\":\"" + e.getMessage() + "\"}",
-                    AgentActionStatus.ERROR);
-
-            return new CrawlResult(false, "Unexpected error: " + e.getMessage(), CrawlStatus.FAILED);
+            failOnce(businessId, start, e);
         }
     }
 
-    /**
-     * Get all documents for a business.
-     */
+    @Transactional(readOnly = true)
+    public Business getBusinessForCrawl(UUID businessId) {
+        return businessRepository.findById(businessId)
+                .orElseThrow(() -> new BusinessNotFoundException("Business not found: " + businessId));
+    }
+
     public java.util.List<Document> getBusinessDocuments(UUID businessId) {
         return documentRepository.findByBusinessId(businessId);
     }
 
-    /**
-     * Get existing URLs for a business (for deduplication).
-     */
+    private void failOnce(UUID businessId, long start, Throwable error) {
+        Business current = businessRepository.findById(businessId).orElse(null);
+        if (current != null && current.getCrawlStatus() == CrawlStatus.FAILED) {
+            return;
+        }
+        crawlStateWriter.markFailed(businessId, SafeErrorMessages.CRAWL_FAILED);
+        long duration = System.currentTimeMillis() - start;
+        auditLogService.logAgentActionWithError(businessId, "Crawler", "CRAWL_FAILED",
+                "{\"limit\":" + MAX_PAGES_TO_CRAWL + "}",
+                "{\"status\":\"FAILED\",\"durationMs\":" + duration + "}",
+                AgentActionStatus.ERROR,
+                SafeErrorMessages.CRAWL_FAILED,
+                duration);
+    }
+
     private Set<String> getExistingUrls(UUID businessId) {
         Set<String> urls = new HashSet<>();
         documentRepository.findByBusinessId(businessId).forEach(doc -> {
@@ -193,9 +194,6 @@ public class CrawlService {
         return urls;
     }
 
-    /**
-     * Extract URL from page data.
-     */
     private String getUrlFromPageData(FirecrawlClient.FirecrawlPageData pageData) {
         if (pageData.getMetadata() != null && pageData.getMetadata().getSourceURL() != null) {
             return pageData.getMetadata().getSourceURL();
@@ -206,9 +204,6 @@ public class CrawlService {
         return "";
     }
 
-    /**
-     * Extract title from page data.
-     */
     private String getTitleFromPageData(FirecrawlClient.FirecrawlPageData pageData) {
         if (pageData.getMetadata() != null && pageData.getMetadata().getTitle() != null) {
             return pageData.getMetadata().getTitle();
@@ -216,44 +211,35 @@ public class CrawlService {
         return "Untitled";
     }
 
-    /**
-     * Log an agent action.
-     */
-    private void logAgentAction(String agentName, String action, String businessId, String inputJson,
-                                 String outputJson, AgentActionStatus status) {
-        try {
-            AgentLog logEntry = new AgentLog();
-            logEntry.setAgentName(agentName);
-            logEntry.setAction(action);
-            logEntry.setInputJson(inputJson);
-            logEntry.setOutputJson(outputJson);
-            logEntry.setStatus(status);
-
-            Business business = businessRepository.findById(UUID.fromString(businessId)).orElse(null);
-            logEntry.setBusiness(business);
-
-            agentLogRepository.save(logEntry);
-        } catch (Exception e) {
-            log.error("Failed to log agent action", e);
-        }
-    }
-
-    /**
-     * Result of a crawl operation.
-     */
     public static class CrawlResult {
         private final boolean success;
         private final String message;
         private final CrawlStatus status;
+        private final Business business;
 
         public CrawlResult(boolean success, String message, CrawlStatus status) {
+            this(success, message, status, null);
+        }
+
+        public CrawlResult(boolean success, String message, CrawlStatus status, Business business) {
             this.success = success;
             this.message = message;
             this.status = status;
+            this.business = business;
         }
 
         public boolean isSuccess() { return success; }
         public String getMessage() { return message; }
         public CrawlStatus getStatus() { return status; }
+        public Business getBusiness() { return business; }
+
+        public Long getElapsedSeconds() {
+            if (business == null || business.getCrawlStartedAt() == null) {
+                return null;
+            }
+            LocalDateTime end = business.getCrawlFinishedAt() != null
+                    ? business.getCrawlFinishedAt() : LocalDateTime.now();
+            return Math.max(0, Duration.between(business.getCrawlStartedAt(), end).getSeconds());
+        }
     }
 }

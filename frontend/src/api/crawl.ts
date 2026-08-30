@@ -1,21 +1,14 @@
 import { apiClient } from './axios';
-import axios from 'axios';
 
-// Get the base URL from the centralized apiClient
-const baseURL = apiClient.defaults.baseURL || '/api';
-
-// Create a client with longer timeout for crawl operations
-const crawlClient = axios.create({
-  baseURL,
-  timeout: 300000, // 5 minutes for crawl operations
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-export interface CrawlResponse {
+export interface CrawlStatusPayload {
   status: string;
   message: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  error?: string | null;
+  pagesSaved?: number;
+  pagesTotal?: number;
+  elapsedSeconds?: number | null;
 }
 
 export interface Document {
@@ -35,15 +28,22 @@ export interface ApiResponse<T> {
 }
 
 export const crawlApi = {
-  async startCrawl(id: string): Promise<ApiResponse<CrawlResponse>> {
-    const response = await crawlClient.post<ApiResponse<CrawlResponse>>(
+  async startCrawl(id: string): Promise<ApiResponse<CrawlStatusPayload>> {
+    const response = await apiClient.post<ApiResponse<CrawlStatusPayload>>(
       `/businesses/${id}/crawl`
     );
     return response.data;
   },
 
+  async getCrawlStatus(id: string): Promise<ApiResponse<CrawlStatusPayload>> {
+    const response = await apiClient.get<ApiResponse<CrawlStatusPayload>>(
+      `/businesses/${id}/crawl-status`
+    );
+    return response.data;
+  },
+
   async getDocuments(id: string): Promise<ApiResponse<Document[]>> {
-    const response = await crawlClient.get<ApiResponse<Document[]>>(
+    const response = await apiClient.get<ApiResponse<Document[]>>(
       `/businesses/${id}/documents`
     );
     return response.data;

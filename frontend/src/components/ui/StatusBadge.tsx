@@ -1,13 +1,13 @@
 import Badge, { type BadgeColor } from './Badge';
 
 /**
- * Maps a status string to a themed badge color following the app's badge rules:
- * - NEW: blue
- * - QUALIFIED / APPROVED / COMPLETED / IMPORTED / ANSWERED / SUCCESS: green
- * - HOT / PENDING / REVIEWED / NO_ANSWER / BUSY / VOICEMAIL: amber
- * - IN_PROGRESS / RUNNING / STARTED: cyan
- * - COLD / FAILED / REJECTED / CANCELLED / BLOCKED: red / muted
- */
+  * Maps a status string to a themed badge color following the app's badge rules:
+  * - NEW: blue
+  * - QUALIFIED / APPROVED / COMPLETED / IMPORTED / ANSWERED / SUCCESS: green
+  * - HOT / PENDING / REVIEWED / NO_ANSWER / BUSY / VOICEMAIL: amber
+  * - IN_PROGRESS / RUNNING / STARTED: cyan
+  * - COLD / FAILED / REJECTED / CANCELLED / BLOCKED: red / muted
+  */
 export function statusColor(status: string): BadgeColor {
   const s = (status || '').toUpperCase();
   switch (s) {
@@ -28,6 +28,8 @@ export function statusColor(status: string): BadgeColor {
     case 'VOICEMAIL':
       return 'amber';
     case 'IN_PROGRESS':
+    case 'CRAWLING':
+    case 'QUEUED':
     case 'RUNNING':
     case 'STARTED':
       return 'cyan';
@@ -53,8 +55,8 @@ interface StatusBadgeProps {
 }
 
 /**
- * Status pill that auto-colors based on the status value and prettifies the label.
- */
+  * Status pill that auto-colors based on the status value and prettifies the label.
+  */
 export default function StatusBadge({ status, className = '' }: StatusBadgeProps) {
   const label = (status || '').replace(/_/g, ' ');
   return (

@@ -39,6 +39,15 @@ dist-ssr/
 .env.development.local
 .env.test.local
 .env.production.local
+backend/.env
+frontend/.env
+
+# Cursor / local agent traces (never deploy)
+.cursor/
+.cursor-tracer/
+agent-transcripts/
+*.trace
+*.cursor-trace
 
 # Test Coverage
 coverage/

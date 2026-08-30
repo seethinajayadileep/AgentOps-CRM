@@ -14,12 +14,13 @@ import Settings from './pages/Settings';
 import SupportChat from './pages/SupportChat';
 import LeadFinder from './pages/LeadFinder';
 import LeadFinderResults from './pages/LeadFinderResults';
+import NotFound from './pages/NotFound';
 
 /**
- * Main App component with routing configuration.
- *
- * @version 0.2.0
- */
+  * Main App component with routing configuration.
+  *
+  * @version 0.2.0
+  */
 function App() {
   return (
     <BrowserRouter
@@ -46,6 +47,7 @@ function App() {
           <Route path="approvals" element={<ApprovalsPage />} />
           <Route path="agent-logs" element={<AgentLogs />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
     </BrowserRouter>

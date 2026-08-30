@@ -83,6 +83,26 @@ public class DashboardController {
         LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX);
         stats.agentActionsToday = agentLogRepository.countByCreatedAtBetween(startOfDay, endOfDay);
 
+        LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
+        LocalDateTime startOfWeek = LocalDate.now().minusDays(7).atStartOfDay();
+        LocalDateTime startOfYesterday = LocalDate.now().minusDays(1).atStartOfDay();
+        LocalDateTime endOfYesterday = startOfDay.minusNanos(1);
+
+        long businessesPrevious = businessRepository.countByCreatedAtBefore(startOfMonth);
+        long leadsPrevious = leadRepository.countByCreatedAtBefore(startOfMonth);
+        long conversationsPrevious = conversationRepository.countByCreatedAtBefore(startOfWeek);
+        long voicePrevious = voiceCallRepository.countByCreatedAtBefore(startOfWeek);
+        long actionsYesterday = agentLogRepository.countByCreatedAtBetween(startOfYesterday, endOfYesterday);
+
+        stats.businessesTrend = trend(stats.activeBusinesses, businessesPrevious, "last month");
+        stats.leadsTrend = trend(stats.totalLeads, leadsPrevious, "last month");
+        stats.conversationsTrend = trend(stats.conversations, conversationsPrevious, "last week");
+        stats.voiceCallsTrend = trend(stats.voiceCalls, voicePrevious, "last week");
+        stats.agentActionsTrend = trend(stats.agentActionsToday, actionsYesterday, "yesterday");
+        stats.pendingApprovalsTrend = stats.pendingApprovals > 0
+                ? new Trend("alert", stats.pendingApprovals + " awaiting action")
+                : new Trend("flat", "None awaiting");
+
         // Recent activity feed from the latest agent logs.
         List<ActivityItem> activity = new ArrayList<>();
         for (AgentLog log : agentLogRepository.findTop8ByOrderByCreatedAtDesc()) {
@@ -108,7 +128,42 @@ public class DashboardController {
         public long voiceCalls;
         public long pendingApprovals;
         public long agentActionsToday;
+        public Trend businessesTrend;
+        public Trend leadsTrend;
+        public Trend conversationsTrend;
+        public Trend voiceCallsTrend;
+        public Trend pendingApprovalsTrend;
+        public Trend agentActionsTrend;
         public List<ActivityItem> recentActivity = new ArrayList<>();
+    }
+
+    public static class Trend {
+        public String direction;
+        public String label;
+
+        public Trend() {
+        }
+
+        public Trend(String direction, String label) {
+            this.direction = direction;
+            this.label = label;
+        }
+    }
+
+    static Trend trend(long current, long previous, String period) {
+        if (previous <= 0 && current <= 0) {
+            return new Trend("flat", "No change");
+        }
+        if (previous <= 0) {
+            return new Trend("up", "New this period");
+        }
+        long delta = current - previous;
+        long pct = Math.round((100.0 * delta) / previous);
+        if (pct == 0) {
+            return new Trend("flat", "No change vs " + period);
+        }
+        String dir = pct > 0 ? "up" : "down";
+        return new Trend(dir, Math.abs(pct) + "% vs " + period);
     }
 
     /**

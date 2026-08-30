@@ -2,6 +2,7 @@ package com.agentopscrm.controller;
 
 import com.agentopscrm.dto.HealthResponse;
 import com.agentopscrm.dto.ServiceStatus;
+import com.agentopscrm.util.AppVersion;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,7 +41,7 @@ public class HealthController {
         services.put("redis", new ServiceStatus("UP", "Redis connection established"));
 
         response.setServices(services);
-        response.setVersion("0.1.0");
+        response.setVersion(AppVersion.VALUE);
 
         return ResponseEntity.ok(response);
     }

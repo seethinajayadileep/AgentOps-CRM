@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -40,7 +41,17 @@ public interface ConversationRepository extends JpaRepository<Conversation, UUID
 
     long countByBusinessId(UUID businessId);
 
+    long countByStatus(ConversationStatus status);
+
     long countByBusinessIdAndStatus(UUID businessId, ConversationStatus status);
 
-    long countByStatus(ConversationStatus status);
+    @Query("""
+        SELECT c FROM Conversation c LEFT JOIN FETCH c.business
+        WHERE LOWER(COALESCE(c.customerName, '')) LIKE LOWER(CONCAT('%', :term, '%'))
+           OR LOWER(COALESCE(c.customerEmail, '')) LIKE LOWER(CONCAT('%', :term, '%'))
+           OR LOWER(COALESCE(c.customerPhone, '')) LIKE LOWER(CONCAT('%', :term, '%'))
+        """)
+    List<Conversation> searchByTerm(@Param("term") String term, Pageable pageable);
+
+    long countByCreatedAtBefore(LocalDateTime cutoff);
 }

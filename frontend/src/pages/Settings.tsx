@@ -30,11 +30,11 @@ import type {
 } from '../types/settings';
 
 /**
- * Comprehensive Settings page for system configuration, integration readiness and diagnostics.
- * 
- * @version 0.1.0
- * Feature: F-013 - Production Settings Page
- */
+  * Comprehensive Settings page for system configuration, integration readiness and diagnostics.
+  * 
+  * @version 0.1.0
+  * Feature: F-013 - Production Settings Page
+  */
 
 type TabName = 'overview' | 'integrations' | 'models' | 'rag' | 'voice' | 'agents' | 'system';
 
@@ -55,15 +55,15 @@ export default function Settings() {
 
       {/* Tabs Navigation */}
       <div className="mb-6 overflow-x-auto">
-        <div className="flex gap-2 border-b border-white/[0.06]">
+        <div className="flex gap-2 border-b border-frost">
           {(['overview', 'integrations', 'models', 'rag', 'voice', 'agents', 'system'] as TabName[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === tab
-                  ? 'border-b-2 border-purple-500 text-white'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  ? 'border-b-2 border-ink text-ink'
+                  : 'text-slate hover:text-ink'
               }`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -116,8 +116,8 @@ function OverviewTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-white">System Health Overview</h2>
-         <p className="mt-1 text-sm text-zinc-400">
+          <h2 className="text-xl font-semibold text-ink">System Health Overview</h2>
+          <p className="mt-1 text-sm text-slate">
             {data.applicationName} v{data.applicationVersion} • {data.activeProfile} environment
           </p>
         </div>
@@ -134,7 +134,7 @@ function OverviewTab() {
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <StatusIcon status={status} />
-                <span className="ml-3 font-medium capitalize text-white">{name}</span>
+                <span className="ml-3 font-medium capitalize text-ink">{name}</span>
               </div>
               <ReadinessBadge status={status} />
             </div>
@@ -144,7 +144,7 @@ function OverviewTab() {
 
       {/* System Info */}
       <Card className="p-6">
-        <h3 className="mb-4 text-lg font-semibold text-white">System Information</h3>
+        <h3 className="mb-4 text-lg font-semibold text-ink">System Information</h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <InfoRow label="Server Time" value={formatDateTime(data.serverTime)} />
           <InfoRow label="Last Health Check" value={formatDateTime(data.lastHealthCheck)} />
@@ -212,7 +212,7 @@ function IntegrationsTab() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">Integration Readiness</h2>
+        <h2 className="text-xl font-semibold text-ink">Integration Readiness</h2>
         <Button variant="secondary" onClick={loadData}>
           <RefreshCw size={16} className="mr-2" />
           Refresh
@@ -229,63 +229,60 @@ function IntegrationsTab() {
             <Card key={integration.name} className="p-6">
               <div className="mb-4 flex items-start justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-white">{integration.name}</h3>
-                  <p className="mt-1 text-sm text-zinc-400">{integration.purpose}</p>
+                  <h3 className="text-lg font-semibold text-ink">{integration.name}</h3>
+                  <p className="mt-1 text-sm text-slate">{integration.purpose}</p>
                 </div>
                 <ReadinessBadge status={integration.status} />
               </div>
 
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-zinc-400">Configured:</span>
-                  <span className="text-white">{integration.configured ? 'Yes' : 'No'}</span>
+                  <span className="text-slate">Configured:</span>
+                  <span className="text-ink">{integration.configured ? 'Yes' : 'No'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-400">Enabled:</span>
-                  <span className="text-white">{integration.enabled ? 'Yes' : 'No'}</span>
+                  <span className="text-slate">Enabled:</span>
+                  <span className="text-ink">{integration.enabled ? 'Yes' : 'No'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-400">Status:</span>
-                  <span className="text-white">{integration.message}</span>
+                  <span className="text-slate">Status:</span>
+                  <span className="text-ink">{integration.message}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-400">Last Checked:</span>
-                  <span className="text-white">{formatDateTime(integration.lastChecked)}</span>
+                  <span className="text-slate">Last Checked:</span>
+                  <span className="text-ink">{formatDateTime(integration.lastChecked)}</span>
                 </div>
               </div>
 
-              <div className="mt-4 rounded-lg bg-white/[0.02] p-3">
-                <p className="text-xs text-zinc-500">{integration.configDetails}</p>
+              <div className="mt-4 rounded-lg bg-mist p-3">
+                <p className="text-xs text-slate">{integration.configDetails}</p>
               </div>
 
-              {integration.configured && (
+              {integration.configured && integration.name !== 'Redis' && (
                 <Button
                   variant="ghost"
                   onClick={() => handleTest(integration)}
                   disabled={isTesting}
                   className="mt-4 w-full"
                 >
-                  {isTesting ? 'Testing...' : 'Test Connection'}
+                  {isTesting
+                    ? 'Testing...'
+                    : testResult?.checkType === 'CONFIGURATION_ONLY'
+                      ? 'Check configuration'
+                      : 'Test Connection'}
                 </Button>
               )}
 
               {testResult && (
-                <div
-                  className={`mt-4 rounded-lg p-3 ${
-                    testResult.success ? 'bg-emerald-500/10' : 'bg-red-500/10'
-                  }`}
-                >
-                  <div className="flex items-center text-sm">
-                    {testResult.success ? (
-                      <CheckCircle size={16} className="mr-2 text-emerald-400" />
-                    ) : (
-                      <XCircle size={16} className="mr-2 text-red-400" />
-                    )}
-                    <span className={testResult.success ? 'text-emerald-200' : 'text-red-200'}>
-                      {testResult.message}
-                    </span>
+                <div className="mt-4 rounded-lg bg-mist p-3">
+                  <div className="mb-2">
+                    <ReadinessBadge status={testResult.status} />
                   </div>
-                  <p className="mt-1 text-xs text-zinc-500">
+                  <p className="text-sm text-ink">{testResult.message}</p>
+                  {testResult.checkType === 'CONFIGURATION_ONLY' && (
+                    <p className="mt-1 text-xs text-slate">Configuration check only — no live provider call.</p>
+                  )}
+                  <p className="mt-1 text-xs text-slate">
                     Duration: {testResult.durationMs}ms • {formatDateTime(testResult.testedAt)}
                   </p>
                 </div>
@@ -329,7 +326,7 @@ function ModelsTab() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">AI Models Configuration</h2>
+        <h2 className="text-xl font-semibold text-ink">AI Models Configuration</h2>
         <Button variant="secondary" onClick={loadData}>
           <RefreshCw size={16} className="mr-2" />
           Refresh
@@ -337,11 +334,11 @@ function ModelsTab() {
       </div>
 
       <Card className="p-6">
-        <div className="mb-4 rounded-lg bg-blue-500/10 p-4">
+        <div className="mb-4 rounded-lg bg-mist p-4">
           <p className="text-sm text-blue-200">{data.configNote}</p>
         </div>
 
-        <h3 className="mb-4 text-lg font-semibold text-white">Agent Models</h3>
+        <h3 className="mb-4 text-lg font-semibold text-ink">Agent Models</h3>
         <div className="space-y-3">
           <InfoRow label="RAG Answer Model" value={data.ragAnswerModel} />
           <InfoRow label="Evaluation Agent Model" value={data.evaluationModel} />
@@ -349,7 +346,7 @@ function ModelsTab() {
           <InfoRow label="Follow-up Agent Model" value={data.followUpModel} />
         </div>
 
-        <h3 className="mb-4 mt-6 text-lg font-semibold text-white">Embeddings</h3>
+        <h3 className="mb-4 mt-6 text-lg font-semibold text-ink">Embeddings</h3>
         <div className="space-y-3">
           <InfoRow label="Embedding Provider" value={data.embeddingProvider} />
           <InfoRow label="Embedding Model" value={data.embeddingModel} />
@@ -391,7 +388,7 @@ function RagTab() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">Knowledge & RAG Configuration</h2>
+        <h2 className="text-xl font-semibold text-ink">Knowledge & RAG Configuration</h2>
         <Button variant="secondary" onClick={loadData}>
           <RefreshCw size={16} className="mr-2" />
           Refresh
@@ -411,7 +408,7 @@ function RagTab() {
       )}
 
       <Card className="p-6">
-        <h3 className="mb-4 text-lg font-semibold text-white">Configuration</h3>
+        <h3 className="mb-4 text-lg font-semibold text-ink">Configuration</h3>
         <div className="space-y-3">
           <InfoRow label="Embedding Provider" value={data.embeddingProvider} />
           <InfoRow label="Embedding Model" value={data.embeddingModel} />
@@ -423,7 +420,7 @@ function RagTab() {
       </Card>
 
       <Card className="p-6">
-        <h3 className="mb-4 text-lg font-semibold text-white">Knowledge Base Metrics</h3>
+        <h3 className="mb-4 text-lg font-semibold text-ink">Knowledge Base Metrics</h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <MetricCard label="Total Businesses" value={data.totalBusinesses} />
           <MetricCard label="With Documents" value={data.businessesWithDocuments} />
@@ -498,12 +495,12 @@ function VoiceTab() {
   const renderStatusBanner = () => {
     if (data.status === 'DISABLED') {
       return (
-        <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-4">
+        <div className="rounded-lg border border-frost bg-mist/50 p-4">
           <div className="flex items-start">
-            <AlertTriangle size={20} className="mr-3 mt-0.5 text-zinc-400" />
+            <AlertTriangle size={20} className="mr-3 mt-0.5 text-slate" />
             <div>
-              <h4 className="font-semibold text-zinc-200">Voice calling is disabled</h4>
-              <p className="mt-1 text-sm text-zinc-400">{data.statusMessage}</p>
+              <h4 className="font-semibold text-ink">Voice calling is disabled</h4>
+              <p className="mt-1 text-sm text-slate">{data.statusMessage}</p>
             </div>
           </div>
         </div>
@@ -526,12 +523,12 @@ function VoiceTab() {
     
     if (data.status === 'CONFIGURED' || data.status === 'HEALTHY') {
       return (
-        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4">
+        <div className="rounded-lg border border-frost bg-mist p-4">
           <div className="flex items-start">
-            <CheckCircle size={20} className="mr-3 mt-0.5 text-emerald-400" />
+            <CheckCircle size={20} className="mr-3 mt-0.5 text-ink" />
             <div>
-              <h4 className="font-semibold text-emerald-200">Voice AI is ready</h4>
-              <p className="mt-1 text-sm text-emerald-300">{data.statusMessage}</p>
+              <h4 className="font-semibold text-ink">Voice AI is ready</h4>
+              <p className="mt-1 text-sm text-slate">{data.statusMessage}</p>
             </div>
           </div>
         </div>
@@ -554,12 +551,12 @@ function VoiceTab() {
     
     if (data.status === 'ERROR') {
       return (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4">
+        <div className="rounded-lg border border-red-500/20 bg-mist p-4">
           <div className="flex items-start">
-            <XCircle size={20} className="mr-3 mt-0.5 text-red-400" />
+            <XCircle size={20} className="mr-3 mt-0.5 text-ink" />
             <div className="flex-1">
-              <h4 className="font-semibold text-red-200">Service error</h4>
-              <p className="mt-1 text-sm text-red-300">{data.statusMessage}</p>
+              <h4 className="font-semibold text-ink">Service error</h4>
+              <p className="mt-1 text-sm text-ink">{data.statusMessage}</p>
               <Button 
                 variant="ghost" 
                 onClick={loadData} 
@@ -581,7 +578,7 @@ function VoiceTab() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">Voice AI Configuration</h2>
+        <h2 className="text-xl font-semibold text-ink">Voice AI Configuration</h2>
         <Button variant="secondary" onClick={loadData} disabled={retrying}>
           <RefreshCw size={16} className="mr-2" />
           Refresh
@@ -592,7 +589,7 @@ function VoiceTab() {
 
       <Card className="p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Vapi Readiness</h3>
+          <h3 className="text-lg font-semibold text-ink">Vapi Readiness</h3>
           <ReadinessBadge status={data.status} />
         </div>
 
@@ -605,7 +602,7 @@ function VoiceTab() {
         </div>
 
         <div className="mt-4">
-          <label className="mb-2 block text-sm font-medium text-zinc-400">Webhook Endpoint</label>
+          <label className="mb-2 block text-sm font-medium text-slate">Webhook Endpoint</label>
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -617,12 +614,12 @@ function VoiceTab() {
               <Copy size={16} />
             </Button>
           </div>
-          {copied && <p className="mt-1 text-xs text-emerald-400">Copied to clipboard!</p>}
+          {copied && <p className="mt-1 text-xs text-slate">Copied to clipboard!</p>}
         </div>
       </Card>
 
       <Card className="p-6">
-        <h3 className="mb-4 text-lg font-semibold text-white">Voice Call Metrics</h3>
+        <h3 className="mb-4 text-lg font-semibold text-ink">Voice Call Metrics</h3>
         
         {!data.metricsAvailable && (
           <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
@@ -694,7 +691,7 @@ function AgentsTab() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">Agents & Safety</h2>
+        <h2 className="text-xl font-semibold text-ink">Agents & Safety</h2>
         <Button variant="secondary" onClick={loadData}>
           <RefreshCw size={16} className="mr-2" />
           Refresh
@@ -703,11 +700,11 @@ function AgentsTab() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {data.agents.map((agent) => (
-          <Card key={agent.name} className="p-6">
+          <Card key={agent.name || agent.agentName} className="p-6">
             <div className="mb-4 flex items-start justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-white">{agent.name}</h3>
-                <p className="mt-1 text-sm text-zinc-400">{agent.message}</p>
+                <h3 className="text-lg font-semibold text-ink">{agent.name || agent.agentName}</h3>
+                <p className="mt-1 text-sm text-slate">{agent.message || agent.statusMessage || agent.purpose}</p>
               </div>
               <ReadinessBadge status={agent.status} />
             </div>
@@ -716,20 +713,18 @@ function AgentsTab() {
               {agent.requiredIntegration && (
                 <InfoRow label="Required Integration" value={agent.requiredIntegration} />
               )}
-              {agent.currentModel && <InfoRow label="Current Model" value={agent.currentModel} />}
-              {agent.fallbackAvailable !== undefined && (
-                <InfoRow
-                  label="Fallback Available"
-                  value={agent.fallbackAvailable ? 'Yes' : 'No'}
-                />
-              )}
+              <InfoRow label="Current Model" value={agent.currentModel || 'Not assigned'} />
+              <InfoRow
+                label="Fallback Available"
+                value={agent.fallbackAvailable ? 'Yes' : 'No'}
+              />
             </div>
           </Card>
-       ))}
+        ))}
       </div>
 
       <Card className="p-6">
-        <h3 className="mb-4 text-lg font-semibold text-white">Safety Configuration</h3>
+        <h3 className="mb-4 text-lg font-semibold text-ink">Safety Configuration</h3>
         <div className="space-y-3">
           <InfoRow
             label="Evaluation Agent"
@@ -798,7 +793,7 @@ function SystemTab() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">System Diagnostics</h2>
+        <h2 className="text-xl font-semibold text-ink">System Diagnostics</h2>
         <Button variant="secondary" onClick={loadData}>
           <RefreshCw size={16} className="mr-2" />
           Refresh
@@ -825,7 +820,7 @@ function SystemTab() {
       )}
 
       <Card className="p-6">
-        <h3 className="mb-4 text-lg font-semibold text-white">Application</h3>
+        <h3 className="mb-4 text-lg font-semibold text-ink">Application</h3>
         <div className="space-y-3">
           <InfoRow label="Application Name" value={data.applicationName} />
           <InfoRow label="Application Version" value={data.applicationVersion} />
@@ -837,7 +832,7 @@ function SystemTab() {
       </Card>
 
       <Card className="p-6">
-        <h3 className="mb-4 text-lg font-semibold text-white">Infrastructure</h3>
+        <h3 className="mb-4 text-lg font-semibold text-ink">Infrastructure</h3>
         <div className="space-y-3">
           <InfoRow label="Database Type" value={data.databaseType} />
           <InfoRow label="Redis Configured" value={data.redisConfigured ? 'Yes' : 'No'} />
@@ -846,7 +841,7 @@ function SystemTab() {
       </Card>
 
       <Card className="p-6">
-        <h3 className="mb-4 text-lg font-semibold text-white">Database Management</h3>
+        <h3 className="mb-4 text-lg font-semibold text-ink">Database Management</h3>
         <div className="space-y-3">
           <InfoRow label="Flyway Migrations" value={data.flywayEnabled ? 'Enabled' : 'Disabled'} />
           <InfoRow label="Hibernate Schema Mode" value={data.hibernateSchemaMode} />
@@ -868,22 +863,22 @@ function SystemTab() {
 
 function StatusIcon({ status }: { status: ReadinessStatus }) {
   if (status === 'HEALTHY') {
-    return <CheckCircle size={20} className="text-emerald-400" />;
+    return <CheckCircle size={20} className="text-ink" />;
   }
   if (status === 'CONFIGURED') {
-    return <CheckCircle size={20} className="text-blue-400" />;
+    return <CheckCircle size={20} className="text-slate" />;
   }
   if (status === 'ERROR' || status === 'DEGRADED') {
-    return <XCircle size={20} className="text-red-400" />;
+    return <XCircle size={20} className="text-ink" />;
   }
-  return <AlertTriangle size={20} className="text-zinc-500" />;
+  return <AlertTriangle size={20} className="text-slate" />;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between border-b border-white/[0.06] py-2">
-      <span className="text-sm text-zinc-400">{label}</span>
-      <span className="text-sm font-medium text-white">{value}</span>
+    <div className="flex justify-between border-b border-frost py-2">
+      <span className="text-sm text-slate">{label}</span>
+      <span className="text-sm font-medium text-ink">{value}</span>
     </div>
   );
 }
@@ -898,15 +893,15 @@ function MetricCard({
   color?: 'green' | 'red';
 }) {
   return (
-    <div className="rounded-lg bg-white/[0.02] p-4">
-      <p className="text-sm text-zinc-400">{label}</p>
+    <div className="rounded-lg bg-mist p-4">
+      <p className="text-sm text-slate">{label}</p>
       <p
         className={`mt-2 text-2xl font-bold ${
           color === 'green'
-            ? 'text-emerald-400'
+            ? 'text-ink'
             : color === 'red'
-            ? 'text-red-400'
-            : 'text-white'
+            ? 'text-ink'
+            : 'text-ink'
         }`}
       >
         {value}
@@ -918,9 +913,9 @@ function MetricCard({
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <Card className="p-8 text-center">
-      <XCircle size={48} className="mx-auto text-red-400" />
-      <h3 className="mt-4 text-lg font-semibold text-white">Error Loading Data</h3>
-      <p className="mt-2 text-sm text-zinc-400">{message}</p>
+      <XCircle size={48} className="mx-auto text-ink" />
+      <h3 className="mt-4 text-lg font-semibold text-ink">Error Loading Data</h3>
+      <p className="mt-2 text-sm text-slate">{message}</p>
       <Button variant="primary" onClick={onRetry} className="mt-6">
         <RefreshCw size={16} className="mr-2" />
         Retry

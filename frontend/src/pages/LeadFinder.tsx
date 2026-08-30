@@ -9,10 +9,11 @@ import EmptyState from '../components/ui/EmptyState';
 import LoadingState from '../components/ui/LoadingState';
 import StatusBadge from '../components/ui/StatusBadge';
 import RunDetailsModal from '../components/leadFinder/RunDetailsModal';
+import { safeClientError } from '../util/safeClientError';
 
 /**
- * Lead Finder page (F-010 Apify Lead Finder).
- */
+  * Lead Finder page (F-010 Apify Lead Finder).
+  */
 export default function LeadFinder() {
   const navigate = useNavigate();
 
@@ -47,7 +48,7 @@ export default function LeadFinder() {
       setRuns(runList);
       setError(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to load lead finder');
+      setError(safeClientError(err, 'Failed to load lead finder'));
     } finally {
       setLoading(false);
     }
@@ -58,7 +59,7 @@ export default function LeadFinder() {
       const runList = await leadFinderApi.listRuns();
       setRuns(runList);
     } catch (err: any) {
-      setError(err.message || 'Failed to load runs');
+      setError(safeClientError(err, 'Failed to load runs'));
     }
   };
 
@@ -86,7 +87,7 @@ export default function LeadFinder() {
       setForm({ searchName: '', industry: '', location: '', keywords: '', maxResults: 25 });
       await loadRuns();
     } catch (err: any) {
-      setError(err.message || 'Failed to start search');
+      setError(safeClientError(err, 'Failed to start search'));
     } finally {
       setSubmitting(false);
     }
@@ -104,7 +105,7 @@ export default function LeadFinder() {
       />
 
       {apifyConfigured === false && (
-        <div className="mb-6 rounded-xl border border-[#F59E0B]/30 bg-[#F59E0B]/10 p-4 text-[#fbbf24]">
+        <div className="mb-6 rounded-sm border border-frost bg-mist p-4 text-ink">
           <strong>Apify is not configured.</strong> Set <code className="text-amber-200">APIFY_ENABLED=true</code> and
           provide <code className="text-amber-200">APIFY_API_TOKEN</code> (and an actor id) on the server to enable
           outbound lead discovery.
@@ -112,16 +113,16 @@ export default function LeadFinder() {
       )}
 
       {error && (
-        <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div>
+        <div className="mb-6 rounded-sm border border-frost bg-mist p-4 text-ink">{error}</div>
       )}
       {success && (
-        <div className="mb-6 rounded-xl border border-[#22C55E]/30 bg-[#22C55E]/10 p-4 text-[#4ade80]">{success}</div>
+        <div className="mb-6 rounded-sm border border-frost bg-mist p-4 text-ink">{success}</div>
       )}
 
       {/* Search form */}
       <Card className="mb-6 p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <h2 className="text-lg font-semibold text-white">New Search</h2>
+          <h2 className="text-lg font-semibold text-ink">New Search</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="label-dark">Search Name *</label>
@@ -164,8 +165,11 @@ export default function LeadFinder() {
               />
             </div>
             <div>
-              <label className="label-dark">Max Results</label>
+              <label htmlFor="lead-finder-max-results" className="label-dark">
+                Max Results
+              </label>
               <input
+                id="lead-finder-max-results"
                 type="number"
                 min={1}
                 value={form.maxResults ?? ''}
@@ -184,7 +188,7 @@ export default function LeadFinder() {
       </Card>
 
       {/* Runs table */}
-      <h2 className="mb-3 text-lg font-semibold text-white">Lead Finder Runs</h2>
+      <h2 className="mb-3 text-lg font-semibold text-ink">Lead Finder Runs</h2>
       {runs.length === 0 ? (
         <EmptyState
           icon={<Search size={26} />}
@@ -195,13 +199,13 @@ export default function LeadFinder() {
         <div className="table-card">
           <div className="overflow-x-auto">
             <table className="min-w-full">
-              <thead className="border-b border-white/[0.06] bg-white/[0.02]">
+              <thead className="border-b border-frost bg-mist">
                 <tr>
                   {['Search', 'Industry', 'Location', 'Status', 'Results', 'Imported', 'Created', 'Actions'].map(
                     (h) => (
                       <th
                         key={h}
-                        className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-400"
+                        className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate"
                       >
                         {h}
                       </th>
@@ -219,17 +223,17 @@ export default function LeadFinder() {
                     <tr
                       key={run.id}
                       onClick={() => setSelectedRun(run)}
-                      className="cursor-pointer border-b border-white/[0.04] transition-colors duration-200 hover:bg-white/[0.03]"
+                      className="cursor-pointer border-b border-frost transition-colors duration-200 hover:bg-mist"
                     >
-                      <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-zinc-100">
+                      <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-ink">
                         {run.searchName}
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.industry || '-'}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.location || '-'}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">{run.industry || '-'}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">{run.location || '-'}</td>
                       <td className="whitespace-nowrap px-6 py-4">
                         <StatusBadge status={run.status} />
                         {run.status === 'RUNNING' && (
-                          <div className="mt-1 text-xs text-zinc-500">
+                          <div className="mt-1 text-xs text-slate">
                             {isStale ? (
                               <span className="text-amber-400">Stale - no update in 30+ min</span>
                             ) : (
@@ -241,20 +245,20 @@ export default function LeadFinder() {
                           </div>
                         )}
                         {run.status === 'FAILED' && run.failureReason && (
-                          <div className="mt-1 max-w-xs truncate text-xs text-red-400" title={run.failureReason}>
-                            {run.failureReason}
+                          <div className="mt-1 max-w-xs truncate text-xs text-ink">
+                            {safeClientError(run.failureReason, 'This search failed. Check Lead Finder settings and try again.')}
                           </div>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.totalResults}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">{run.importedCount}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">{run.totalResults}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">{run.importedCount}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
                         {new Date(run.createdAt).toLocaleString()}
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-sm" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => navigate(`/lead-finder/${run.id}`)}
-                          className="font-medium text-primary-300 hover:text-primary-200"
+                          className="font-medium text-ink hover:text-ink"
                         >
                           View Results
                         </button>
@@ -278,7 +282,7 @@ export default function LeadFinder() {
               setSelectedRun(updated);
               await loadRuns();
             } catch (err: any) {
-              setError(err.message || 'Failed to sync run');
+              setError(safeClientError(err, 'Failed to sync run'));
             }
           }}
         />

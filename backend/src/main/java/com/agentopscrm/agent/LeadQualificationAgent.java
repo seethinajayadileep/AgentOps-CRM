@@ -186,14 +186,13 @@ public class LeadQualificationAgent {
         
         // Buying intent keywords
         String[] keywords = {
-            "price", "pricing", "cost", "quote",
+            "price", "pricing", "quote",
             "buy", "purchase", "order",
-            "interested", "need", "want",
+            "interested",
             "call me", "contact me", "demo",
-            "start", "begin", "launch",
-            "budget", "payment", "plan", "package",
+            "budget", "payment",
             "how much", "what does it cost", "what is the cost",
-            "urgent", "asap", "soon"
+            "urgent", "asap"
         };
 
         for (String keyword : keywords) {

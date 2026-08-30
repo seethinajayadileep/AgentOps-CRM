@@ -50,21 +50,15 @@ public class ConversationController {
         logger.info("GET /api/conversations - page: {}, size: {}, filters: search={}, businessId={}, status={}, channel={}, leadCaptureStatus={}",
                 page, size, search, businessId, status, channel, leadCaptureStatus);
 
-        try {
-            PaginatedResponse<ConversationListItemResponse> response = conversationService.getAllConversations(
-                    search, businessId, status, channel, leadCaptureStatus,
-                    startDate, endDate, page, size, sort
-            );
+        PaginatedResponse<ConversationListItemResponse> response = conversationService.getAllConversations(
+                search, businessId, status, channel, leadCaptureStatus,
+                startDate, endDate, page, size, sort
+        );
 
-            logger.info("Retrieved {} conversations, total: {}",
-                    response.getItems().size(), response.getPagination().getTotalElements());
+        logger.info("Retrieved {} conversations, total: {}",
+                response.getItems().size(), response.getPagination().getTotalElements());
 
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            logger.error("Error fetching conversations", e);
-            return ResponseEntity.internalServerError().build();
-        }
+        return ResponseEntity.ok(response);
     }
 
     /**

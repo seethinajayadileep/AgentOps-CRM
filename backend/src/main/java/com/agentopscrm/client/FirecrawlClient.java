@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Client for Firecrawl API - website crawling service.
@@ -26,6 +27,7 @@ import java.util.Map;
 public class FirecrawlClient {
 
     private static final String FIRECRAWL_API_URL = "https://api.firecrawl.dev/v1/crawl";
+    private static final String FIRECRAWL_CREDIT_URL = "https://api.firecrawl.dev/v1/team/credit-usage";
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(3);
     private static final Duration MAX_POLL_TIME = Duration.ofMinutes(5);
 
@@ -89,6 +91,11 @@ public class FirecrawlClient {
      * @throws FirecrawlException if polling fails or times out
      */
     public FirecrawlCrawlResponse pollForResults(String jobId) throws FirecrawlException {
+        return pollForResults(jobId, null);
+    }
+
+    public FirecrawlCrawlResponse pollForResults(String jobId, Consumer<FirecrawlCrawlResponse> progressCallback)
+            throws FirecrawlException {
         String pollUrl = FIRECRAWL_API_URL + "/" + jobId;
 
         HttpHeaders headers = new HttpHeaders();
@@ -115,10 +122,13 @@ public class FirecrawlClient {
                 if ("completed".equals(body.status) || "completed".equals(body.getStatus())) {
                     return body;
                 } else if ("failed".equals(body.status) || "failed".equals(body.getStatus())) {
-                    throw new FirecrawlException("Crawl job failed: " + body.getError());
+                    throw new FirecrawlException("Crawl job failed");
                 }
 
-                // Still processing, wait and retry
+                if (progressCallback != null) {
+                    progressCallback.accept(body);
+                }
+
                 Thread.sleep(POLL_INTERVAL.toMillis());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -140,15 +150,46 @@ public class FirecrawlClient {
      * @throws FirecrawlException if the crawl fails
      */
     public FirecrawlCrawlResponse executeCrawl(String url, int limit) throws FirecrawlException {
+        return executeCrawl(url, limit, null);
+    }
+
+    public FirecrawlCrawlResponse executeCrawl(String url, int limit,
+                                               Consumer<FirecrawlCrawlResponse> progressCallback)
+            throws FirecrawlException {
         FirecrawlCrawlResponse startResponse = startCrawl(url, limit);
-        return pollForResults(startResponse.getId() != null ? startResponse.getId() : startResponse.getJobId());
+        return pollForResults(
+                startResponse.getId() != null ? startResponse.getId() : startResponse.getJobId(),
+                progressCallback);
+    }
+
+    public boolean isConfigured() {
+        return apiKey != null && !apiKey.isBlank();
     }
 
     /**
-     * Check if Firecrawl is configured.
+     * Lightweight authenticated GET. Never starts a crawl.
      */
-    public boolean isConfigured() {
-        return apiKey != null && !apiKey.isBlank();
+    public void ping() throws FirecrawlException {
+        if (!isConfigured()) {
+            throw new FirecrawlException("FIRECRAWL_API_KEY is not configured");
+        }
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(apiKey);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(
+                    FIRECRAWL_CREDIT_URL,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    String.class
+            );
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new FirecrawlException("Unexpected status: " + response.getStatusCode().value());
+            }
+        } catch (FirecrawlException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new FirecrawlException("Firecrawl health check failed", e);
+        }
     }
 
     // ===== DTOs for Firecrawl API =====
@@ -162,6 +203,7 @@ public class FirecrawlClient {
         private String status;
         private String error;
         private Integer total;
+        private Integer completed;
         private List<FirecrawlPageData> data;
 
         public boolean isSuccess() { return success; }
@@ -184,6 +226,9 @@ public class FirecrawlClient {
 
         public Integer getTotal() { return total; }
         public void setTotal(Integer total) { this.total = total; }
+
+        public Integer getCompleted() { return completed; }
+        public void setCompleted(Integer completed) { this.completed = completed; }
 
         public List<FirecrawlPageData> getData() { return data; }
         public void setData(List<FirecrawlPageData> data) { this.data = data; }

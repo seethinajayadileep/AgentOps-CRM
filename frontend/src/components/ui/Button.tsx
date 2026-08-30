@@ -16,8 +16,8 @@ const variantClass: Record<Variant, string> = {
 };
 
 /**
- * Themed button with gradient / glass variants.
- */
+  * Themed button with gradient / glass variants.
+  */
 export default function Button({ variant = 'primary', className = '', children, ...rest }: ButtonProps) {
   return (
     <button className={`${variantClass[variant]} ${className}`} {...rest}>

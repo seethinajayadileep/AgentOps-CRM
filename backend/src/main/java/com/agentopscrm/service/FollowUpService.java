@@ -81,6 +81,10 @@ public class FollowUpService {
                 Map.of("leadId", leadId.toString(), "tone", tone),
                 null, AgentActionStatus.SUCCESS, null, 0L);
 
+        if (!followUpAgent.isConfigured()) {
+            throw new IllegalStateException("OpenAI is not configured. Follow-up generation is unavailable.");
+        }
+
         // Fetch lead
         Lead lead = leadRepository.findById(leadId)
                 .orElseThrow(() -> new RuntimeException("Lead not found with ID: " + leadId));

@@ -122,8 +122,13 @@ public class BusinessController {
         return ResponseEntity.ok(ApiResponse.success(response, "Business updated successfully"));
     }
 
+    @GetMapping("/{id}/dependencies")
+    public ResponseEntity<ApiResponse<BusinessDependenciesResponse>> getDependencies(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success(businessService.getDependencies(id)));
+    }
+
     /**
-     * Delete a business.
+     * Delete a business and its safe dependents in one transaction.
      * Endpoint: DELETE /api/businesses/{id} (API-007)
      */
     @DeleteMapping("/{id}")
@@ -142,6 +147,10 @@ public class BusinessController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
+        if (term != null && term.length() > BusinessService.MAX_SEARCH_LENGTH) {
+            throw new IllegalArgumentException("Search must be " + BusinessService.MAX_SEARCH_LENGTH
+                    + " characters or fewer");
+        }
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Business> businesses = businessService.searchBusinesses(term, pageable);
 
@@ -198,7 +207,7 @@ public class BusinessController {
      * Convert Business entity to DTO.
      */
     private BusinessResponse toResponse(Business business) {
-        return new BusinessResponse(
+        BusinessResponse response = new BusinessResponse(
                 business.getId().toString(),
                 business.getName(),
                 business.getWebsiteUrl(),
@@ -206,9 +215,18 @@ public class BusinessController {
                 business.getDescription(),
                 business.getContactEmail(),
                 business.getContactPhone(),
-                business.getCrawlStatus().name(),
+                business.getCrawlStatus() != null
+                        ? business.getCrawlStatus().toPublicStatus().name() : CrawlStatus.NOT_STARTED.name(),
                 business.getCreatedAt().toString(),
                 business.getUpdatedAt() != null ? business.getUpdatedAt().toString() : null
         );
+        response.setCrawlStartedAt(business.getCrawlStartedAt() != null
+                ? business.getCrawlStartedAt().toString() : null);
+        response.setCrawlFinishedAt(business.getCrawlFinishedAt() != null
+                ? business.getCrawlFinishedAt().toString() : null);
+        response.setCrawlError(business.getCrawlError());
+        response.setCrawlPagesSaved(business.getCrawlPagesSaved());
+        response.setCrawlPagesTotal(business.getCrawlPagesTotal());
+        return response;
     }
 }

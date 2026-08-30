@@ -7,6 +7,21 @@ import type {
   PaginatedResponse,
 } from '../types/index';
 
+export interface BusinessDependencies {
+  businessId: string;
+  businessName: string;
+  leads: number;
+  conversations: number;
+  messages: number;
+  documents: number;
+  knowledgeChunks: number;
+  knowledgeBaseJobs: number;
+  approvals: number;
+  agentLogs: number;
+  voiceCalls: number;
+  total?: number;
+}
+
 export const businessApi = {
   async getAllBusinesses(params?: {
     page?: number;
@@ -45,6 +60,13 @@ export const businessApi = {
     const response = await apiClient.put<ApiResponse<Business>>(
       `/businesses/${id}`,
       data
+    );
+    return response.data;
+  },
+
+  async getDependencies(id: string): Promise<ApiResponse<BusinessDependencies>> {
+    const response = await apiClient.get<ApiResponse<BusinessDependencies>>(
+      `/businesses/${id}/dependencies`
     );
     return response.data;
   },

@@ -12,9 +12,9 @@ export interface ToastProps {
 }
 
 /**
- * Toast notification component with auto-dismiss and manual close.
- * Accessible with ARIA live regions.
- */
+  * Toast notification component with auto-dismiss and manual close.
+  * Accessible with ARIA live regions.
+  */
 export default function Toast({ id, type, message, duration = 5000, onClose }: ToastProps) {
   useEffect(() => {
     if (type === 'success' && duration > 0) {
@@ -28,33 +28,11 @@ export default function Toast({ id, type, message, duration = 5000, onClose }: T
   const getIcon = () => {
     switch (type) {
       case 'success':
-        return <CheckCircle2 size={20} className="text-green-400" />;
+        return <CheckCircle2 size={20} className="text-ink" />;
       case 'error':
-        return <AlertCircle size={20} className="text-red-400" />;
+        return <AlertCircle size={20} className="text-ink" />;
       case 'info':
-        return <Info size={20} className="text-blue-400" />;
-    }
-  };
-
-  const getStyles = () => {
-    switch (type) {
-      case 'success':
-        return 'border-green-500/30 bg-green-500/10';
-      case 'error':
-        return 'border-red-500/30 bg-red-500/10';
-      case 'info':
-        return 'border-blue-500/30 bg-blue-500/10';
-    }
-  };
-
-  const getTextColor = () => {
-    switch (type) {
-      case 'success':
-        return 'text-green-100';
-      case 'error':
-        return 'text-red-100';
-      case 'info':
-        return 'text-blue-100';
+        return <Info size={20} className="text-slate" />;
     }
   };
 
@@ -63,15 +41,15 @@ export default function Toast({ id, type, message, duration = 5000, onClose }: T
       role="alert"
       aria-live={type === 'error' ? 'assertive' : 'polite'}
       aria-atomic="true"
-      className={`pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-xl border p-4 shadow-lg backdrop-blur-sm transition-all ${getStyles()}`}
+      className="pointer-events-auto flex w-full max-w-md items-start gap-3 border border-frost bg-snow p-4 shadow-classic transition-all"
     >
       <div className="flex-shrink-0 pt-0.5">{getIcon()}</div>
       <div className="flex-1">
-        <p className={`text-sm ${getTextColor()}`}>{message}</p>
+        <p className="text-sm text-ink">{message}</p>
       </div>
       <button
         onClick={() => onClose(id)}
-        className="flex-shrink-0 rounded-lg p-1 text-zinc-400 transition-colors hover:bg-white/10 hover:text-zinc-100"
+        className="flex-shrink-0 p-1 text-silver transition-colors hover:bg-mist hover:text-ink"
         aria-label="Close notification"
       >
         <X size={16} />

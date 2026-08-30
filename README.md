@@ -235,20 +235,32 @@ Expected response:
 }
 ```
 
-## 📖 Documentation
+## ☁️ Deploy (Vercel frontend + Railway backend)
 
-| Document | Description |
-|----------|-------------|
-| [PROJECT_SPEC.md](docs/PROJECT_SPEC.md) | Complete project specification |
-| [FEATURE_CHECKLIST.md](docs/FEATURE_CHECKLIST.md) | Feature tracking with IDs |
-| [API_CONTRACT.md](docs/API_CONTRACT.md) | API endpoint documentation |
-| [CHANGELOG.md](docs/CHANGELOG.md) | Change history |
-| [DECISIONS.md](docs/DECISIONS.md) | Technical decisions |
-| [FILE_MAP.md](docs/FILE_MAP.md) | File purpose mapping |
-| [DEBUG_LOG.md](docs/DEBUG_LOG.md) | Debug issues log |
-| [TEST_PLAN.md](docs/TEST_PLAN.md) | Test strategies |
-| [ENVIRONMENT.md](docs/ENVIRONMENT.md) | Environment setup |
-| [ROADMAP.md](docs/ROADMAP.md) | Development roadmap |
+GitHub auto-deploy is already wired to [AgentOps-CRM](https://github.com/seethinajayadileep/AgentOps-CRM). This is a monorepo:
+
+| Host | Root directory | Config |
+|------|----------------|--------|
+| **Vercel** | `frontend` (or repo root + `vercel.json`) | Vite build → `dist` |
+| **Railway** | `backend` (or repo root + `Dockerfile`) | Java 21 Docker image |
+
+### Vercel
+
+Set at **build** time (Vite inlines it):
+
+- `VITE_API_BASE_URL` — Railway public URL **including** `/api`  
+  Example: `https://your-service.up.railway.app/api`
+
+### Railway
+
+- `SPRING_PROFILES_ACTIVE=prod`
+- `PORT` — injected by Railway
+- Database: set `DB_URL` (`jdbc:postgresql://...`) or link Railway Postgres (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`)
+- `CORS_ALLOWED_ORIGINS` — production Vercel origin (preview URLs `https://*.vercel.app` are allowed automatically)
+- `PUBLIC_BACKEND_URL` — Railway public HTTPS origin
+- Provider keys: `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `VAPI_*`, `APIFY_*` as used locally
+
+Postgres needs the **pgvector** extension. Do not commit `.env` files; use `frontend/.env.example` and `backend/.env.example`.
 
 ## 🧪 Testing
 
@@ -271,9 +283,3 @@ npm run test:e2e
 
 - **Backend**: Java Spring Boot
 - **Frontend**: React + Vite + TypeScript
-
-
----
-
-**Version**: 0.1.0
-**Last Updated**: 2026-07-01# AgentOps-CRM

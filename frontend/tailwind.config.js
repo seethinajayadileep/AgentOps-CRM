@@ -7,48 +7,66 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Dark-mode-first surface palette
-        base: {
-          DEFAULT: '#09090B',
-          alt: '#111827',
+        ink: '#182230',
+        navy: '#243B53',
+        page: '#F6F3EE',
+        snow: '#FFFEFC',
+        copy: '#344054',
+        slate: '#667085',
+        frost: '#DED8CF',
+        gold: '#B38B3F',
+        success: '#2F6B57',
+        warning: '#A5672B',
+        error: '#9B3A3A',
+        mist: '#F6F3EE',
+        silver: '#667085',
+        pale: {
+          navy: '#E9EEF4',
+          gold: '#F4EDDC',
+          success: '#E7F0EB',
+          warning: '#F4EBE0',
+          error: '#F3E6E6',
         },
-        card: {
-          DEFAULT: '#18181B',
-          hover: '#1F1F23',
-        },
-        // Repointed "primary" to a purple/violet scale so existing
-        // `bg-primary-600` usages stay on-brand without renaming APIs.
         primary: {
-          50: '#f5f3ff',
-          100: '#ede9fe',
-          200: '#ddd6fe',
-          300: '#c4b5fd',
-          400: '#a78bfa',
-          500: '#8b5cf6',
-          600: '#7c3aed',
-          700: '#6d28d9',
-          800: '#5b21b6',
-          900: '#4c1d95',
+          50: '#E8EEF3',
+          100: '#D5DEE7',
+          200: '#B0BECB',
+          300: '#8296A8',
+          400: '#4E6A82',
+          500: '#243B53',
+          600: '#243B53',
+          700: '#1C2F43',
+          800: '#182230',
+          900: '#101821',
         },
         accent: {
-          purple: '#8B5CF6',
-          blue: '#3B82F6',
-          cyan: '#06B6D4',
+          purple: '#243B53',
+          blue: '#243B53',
+          cyan: '#2F6B57',
         },
-        success: '#22C55E',
-        warning: '#F59E0B',
+      },
+      fontFamily: {
+        serif: ['"Playfair Display"', 'Georgia', 'Times New Roman', 'serif'],
+        sans: ['"Source Sans 3"', 'system-ui', 'sans-serif'],
+      },
+      maxWidth: {
+        content: '1200px',
       },
       borderRadius: {
-        xl: '12px',
-        '2xl': '16px',
+        xl: '4px',
+        '2xl': '6px',
       },
       boxShadow: {
-        glass: '0 8px 32px rgba(0, 0, 0, 0.37)',
-        glow: '0 0 24px rgba(139, 92, 246, 0.25)',
+        glass: '0 1px 2px rgba(24, 34, 48, 0.04)',
+        glow: 'none',
+        classic: '0 1px 2px rgba(24, 34, 48, 0.05), 0 1px 1px rgba(24, 34, 48, 0.03)',
+        sidebar: '4px 0 16px rgba(24, 34, 48, 0.04)',
       },
-      backgroundImage: {
-        'accent-gradient': 'linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%)',
-        'accent-gradient-hover': 'linear-gradient(135deg, #7C3AED 0%, #2563EB 100%)',
+      spacing: {
+        13: '3.25rem',
+      },
+      letterSpacing: {
+        classic: '0.12em',
       },
       transitionDuration: {
         250: '250ms',
@@ -60,7 +78,7 @@ export default {
         },
       },
       animation: {
-        'fade-in': 'fade-in 250ms ease-out',
+        'fade-in': 'fade-in 200ms ease-out',
       },
     },
   },

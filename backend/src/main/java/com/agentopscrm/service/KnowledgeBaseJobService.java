@@ -46,11 +46,13 @@ public class KnowledgeBaseJobService {
             KnowledgeBaseJobStatus.QUEUED,
             KnowledgeBaseJobStatus.CRAWLING,
             KnowledgeBaseJobStatus.CHUNKING,
-            KnowledgeBaseJobStatus.EMBEDDING);
+            KnowledgeBaseJobStatus.EMBEDDING,
+            KnowledgeBaseJobStatus.INDEXING);
 
     private final KnowledgeBaseJobRepository jobRepository;
     private final BusinessRepository businessRepository;
     private final KnowledgeBaseAsyncRunner asyncRunner;
+    private final EmbeddingService embeddingService;
 
     @Value("${kb.job-stale-timeout-minutes:15}")
     private long staleTimeoutMinutes;
@@ -58,10 +60,12 @@ public class KnowledgeBaseJobService {
     public KnowledgeBaseJobService(
             KnowledgeBaseJobRepository jobRepository,
             BusinessRepository businessRepository,
-            KnowledgeBaseAsyncRunner asyncRunner) {
+            KnowledgeBaseAsyncRunner asyncRunner,
+            EmbeddingService embeddingService) {
         this.jobRepository = jobRepository;
         this.businessRepository = businessRepository;
         this.asyncRunner = asyncRunner;
+        this.embeddingService = embeddingService;
     }
 
     /**
@@ -73,6 +77,9 @@ public class KnowledgeBaseJobService {
     public KnowledgeBaseJobResponse startBuild(UUID businessId) {
         if (!businessRepository.existsById(businessId)) {
             throw new BusinessNotFoundException("Business not found: " + businessId);
+        }
+        if (!embeddingService.isConfigured()) {
+            throw new IllegalStateException("OpenAI is not configured. Knowledge base builds are unavailable.");
         }
 
         // Prevent duplicate active builds for the same business (Bug 2 requirement 7).
@@ -182,7 +189,9 @@ public class KnowledgeBaseJobService {
         r.setDocumentsProcessed(job.getDocumentsProcessed());
         r.setChunksCreated(job.getChunksCreated());
         r.setEmbeddingsCreated(job.getEmbeddingsCreated());
-        r.setErrorMessage(job.getErrorMessage());
+        r.setErrorMessage(job.getErrorMessage() != null
+                ? com.agentopscrm.util.SafeErrorMessages.sanitize(job.getErrorMessage())
+                : null);
         r.setStartedAt(job.getStartedAt());
         r.setUpdatedAt(job.getUpdatedAt());
         r.setCompletedAt(job.getCompletedAt());

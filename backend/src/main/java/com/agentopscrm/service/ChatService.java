@@ -62,8 +62,8 @@ public class ChatService {
     @Value("classpath:prompts/support-agent.md")
     private Resource supportAgentPrompt;
 
-    private static final String NO_INFO_MESSAGE = 
-        "I do not have confirmed information about that. Please share your contact details and our team will help you.";
+    private static final String NO_INFO_MESSAGE =
+        "I do not have confirmed information about that in the knowledge base.";
 
     /**
      * Process a chat request and generate response
@@ -125,50 +125,34 @@ public class ChatService {
             return new ChatResult(conversation.getId(), ackResponse, List.of(), 100);
         }
 
-        // 5. Search RAG chunks for business questions
-        RagService.SearchResult searchResult;
-        try {
-            searchResult = ragService.search(businessId, question, 5);
-            logger.info("Found {} relevant chunks", searchResult.getResults().size());
-        } catch (Exception e) {
-            logger.error("RAG search failed", e);
-            throw new ChatException("Failed to search knowledge base: " + e.getMessage());
-        }
-
-        // 6. Generate DRAFT answer using LLM
+        // 5–6. Answer from the same grounded RAG path as Business Detail.
         String answer;
         double confidenceScore;
         List<String> sources;
         List<String> retrievedChunks = new ArrayList<>();
-
-        // Use lower threshold (0.2 instead of 0.5) and always attempt if chunks exist
-        if (searchResult.getResults().isEmpty()) {
-            // No chunks found at all
-            answer = NO_INFO_MESSAGE;
-            confidenceScore = 0.0;
-            sources = List.of();
-            logger.info("No chunks found, using fallback message");
-        } else {
-            // Build context from chunks and let the LLM decide
-            List<String> contextExcerpts = buildContextExcerpts(searchResult.getResults());
-            retrievedChunks = extractChunkContents(searchResult.getResults());
-            sources = extractSources(searchResult.getResults());
-            
-            try {
-                // Generate answer - let LLM determine if context is sufficient
-                String generatedAnswer = answerService.generateAnswer(question, contextExcerpts);
-                
-                answer = generatedAnswer;
-                confidenceScore = getAverageScore(searchResult.getResults()) * 100; // Convert to percentage
-                
-                logger.info("Generated draft answer with confidence: {}", confidenceScore);
-            } catch (Exception e) {
-                logger.error("Answer generation failed", e);
+        try {
+            RagService.AnswerResult answered = ragService.answer(businessId, question, 5);
+            sources = answered.getSources() != null ? answered.getSources() : List.of();
+            retrievedChunks = extractChunkContents(
+                    answered.getResults() != null ? answered.getResults() : List.of());
+            boolean insufficient = AnswerService.INSUFFICIENT_CONTEXT_ANSWER.equals(answered.getAnswer())
+                    || "NO_RESULTS".equals(answered.getStatus())
+                    || "WEAK_CONTEXT".equals(answered.getStatus())
+                    || "ANSWER_UNAVAILABLE".equals(answered.getStatus());
+            if (insufficient || answered.getAnswer() == null || answered.getAnswer().isBlank()) {
                 answer = NO_INFO_MESSAGE;
                 confidenceScore = 0.0;
                 sources = List.of();
-                retrievedChunks = new ArrayList<>();
+                logger.info("Knowledge base miss or weak context (status={})", answered.getStatus());
+            } else {
+                answer = answered.getAnswer();
+                confidenceScore = getAverageScore(
+                        answered.getResults() != null ? answered.getResults() : List.of()) * 100;
+                logger.info("Grounded knowledge-base answer with confidence: {}", confidenceScore);
             }
+        } catch (Exception e) {
+            logger.error("RAG answer failed", e);
+            throw new ChatException("Failed to search knowledge base.");
         }
 
         // 6b. F-008 Evaluation Agent: verify the DRAFT answer is grounded and safe
@@ -194,6 +178,10 @@ public class ChatService {
                     logger.info("Evaluation blocked unsafe answer (risk={}): {}",
                         evaluation.getHallucinationRisk(), evaluation.getReason());
                     answer = fallback;
+                    if (NO_INFO_MESSAGE.equals(answer) || AnswerService.INSUFFICIENT_CONTEXT_ANSWER.equals(answer)) {
+                        sources = List.of();
+                        confidenceScore = 0.0;
+                    }
                 }
             } catch (Exception e) {
                 // Never break chat on evaluation failure; keep the draft as-is.
@@ -210,21 +198,21 @@ public class ChatService {
         //    NEXT reply (name/phone/email) is actually stored, instead of being
         //    treated as a brand-new knowledge-base question - which is what made
         //    the agent repeatedly ask for the same information.
-        boolean assistantAskedForContact = answer.equals(NO_INFO_MESSAGE);
+        boolean knowledgeMiss = answer.equals(NO_INFO_MESSAGE);
         UUID leadId = null;
         LeadCaptureOutcome captureOutcome = LeadCaptureOutcome.none();
         try {
-            captureOutcome = handleLeadCapture(conversation, question, businessId, assistantAskedForContact);
+            captureOutcome = handleLeadCapture(conversation, question, businessId, false);
             leadId = captureOutcome.getLeadId();
         } catch (Exception e) {
-            // Don't fail the chat if lead qualification fails
             logger.error("Lead capture failed, continuing chat", e);
         }
 
         boolean leadCaptureInteraction = captureOutcome.getResponseMessage() != null || leadId != null;
-        String finalAnswer = captureOutcome.getResponseMessage() != null
-            ? captureOutcome.getResponseMessage()
-            : answer;
+        String finalAnswer = answer;
+        if (captureOutcome.getResponseMessage() != null && knowledgeMiss) {
+            finalAnswer = captureOutcome.getResponseMessage();
+        }
 
         // During lead capture the message is a data-collection prompt, not a
         // knowledge-base answer, so we don't surface RAG confidence/sources/eval.

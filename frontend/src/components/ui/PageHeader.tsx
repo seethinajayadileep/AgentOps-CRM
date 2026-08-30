@@ -8,16 +8,20 @@ interface PageHeaderProps {
 }
 
 /**
- * Consistent page header with title, subtitle, optional back link and main action.
+ * Single page title + supporting description. Used as the visible h1 in the content column.
  */
 export default function PageHeader({ title, subtitle, action, back }: PageHeaderProps) {
   return (
     <div className="mb-6">
       {back && <div className="mb-3">{back}</div>}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">{title}</h1>
-          {subtitle && <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-2xl">
+          <h1 className="font-serif text-[32px] leading-tight text-ink">{title}</h1>
+          {subtitle && (
+            <p className="page-subtitle mt-2 text-[16px] font-medium leading-6 sm:text-[15px] sm:font-normal">
+              {subtitle}
+            </p>
+          )}
         </div>
         {action && <div className="flex flex-wrap items-center gap-3">{action}</div>}
       </div>

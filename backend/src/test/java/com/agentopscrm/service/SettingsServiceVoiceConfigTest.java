@@ -90,8 +90,8 @@ class SettingsServiceVoiceConfigTest {
 
         assertEquals(ReadinessStatus.DISABLED, response.getStatus());
         assertFalse(response.isEnabled());
-        assertTrue(response.getStatusMessage().contains("disabled"));
-        assertTrue(response.getStatusMessage().contains("VAPI_ENABLED=true"));
+        assertTrue(response.getStatusMessage().toLowerCase().contains("disabled"));
+        assertTrue(response.getStatusMessage().toLowerCase().contains("no vapi credentials"));
     }
 
     @Test
@@ -103,7 +103,7 @@ class SettingsServiceVoiceConfigTest {
         VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
 
         assertEquals(ReadinessStatus.NOT_CONFIGURED, response.getStatus());
-        assertTrue(response.isEnabled());
+        assertFalse(response.isEnabled());
         assertFalse(response.isApiKeyConfigured());
         assertFalse(response.isAssistantIdConfigured());
         assertFalse(response.isPhoneNumberIdConfigured());
@@ -235,7 +235,19 @@ class SettingsServiceVoiceConfigTest {
         VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
 
         assertEquals(ReadinessStatus.DISABLED, response.getStatus());
-        assertTrue(response.getStatusMessage().contains("disabled"));
-        assertTrue(response.getStatusMessage().contains("VAPI_ENABLED=true"));
+        assertTrue(response.getStatusMessage().toLowerCase().contains("disabled"));
+        assertTrue(response.getStatusMessage().toLowerCase().contains("no vapi credentials"));
+    }
+
+    @Test
+    void getVoiceConfig_whenCredentialsPresentButFlagDisabled_isConfigured() {
+        setVapiConfig(false, "sk-test-key", "assistant-123", "phone-456", "webhook-secret");
+        stubHappyRepositories();
+
+        VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
+
+        assertEquals(ReadinessStatus.CONFIGURED, response.getStatus());
+        assertTrue(response.isEnabled());
+        assertTrue(response.getStatusMessage().toLowerCase().contains("credentials"));
     }
 }

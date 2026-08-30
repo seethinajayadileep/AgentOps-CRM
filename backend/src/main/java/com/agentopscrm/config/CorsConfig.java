@@ -103,15 +103,18 @@ public class CorsConfig {
             }
         }
 
-        // Add localhost origins in development profile
-        if ("dev".equalsIgnoreCase(activeProfile)) {
+        boolean production = activeProfile != null && activeProfile.toLowerCase().contains("prod");
+
+        if (!production) {
             origins.add("http://localhost:5173");
             origins.add("http://127.0.0.1:5173");
             origins.add("http://localhost:3000");
             origins.add("http://127.0.0.1:3000");
+        } else {
+            // Vercel production and preview URLs
+            origins.add("https://*.vercel.app");
         }
 
-        // Fallback if no origins configured (development only!)
         if (origins.isEmpty()) {
             log.warn("No CORS origins configured - defaulting to localhost (NOT safe for production!)");
             origins.add("http://localhost:5173");

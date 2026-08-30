@@ -1,6 +1,7 @@
 package com.agentopscrm.dto.settings;
 
 import com.agentopscrm.entity.enums.ReadinessStatus;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Agent readiness status DTO.
@@ -26,6 +27,21 @@ public class AgentStatus {
     }
 
     // Getters and setters
+    @JsonProperty("name")
+    public String getName() {
+        return agentName;
+    }
+
+    @JsonProperty("message")
+    public String getMessage() {
+        return statusMessage;
+    }
+
+    @JsonProperty("purpose")
+    public String getPurpose() {
+        return statusMessage;
+    }
+
     public String getAgentName() {
         return agentName;
     }

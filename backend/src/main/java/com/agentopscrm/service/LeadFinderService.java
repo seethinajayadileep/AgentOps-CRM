@@ -19,6 +19,7 @@ import com.agentopscrm.repository.BusinessRepository;
 import com.agentopscrm.repository.DiscoveredLeadRepository;
 import com.agentopscrm.repository.LeadRepository;
 import com.agentopscrm.repository.LeadSourceRunRepository;
+import com.agentopscrm.util.SafeErrorMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -64,6 +65,8 @@ public class LeadFinderService {
 
     // Safe, machine-readable failure codes (never expose tokens/secrets).
     public static final String FAILURE_CODE_APIFY_UNAUTHORIZED = "APIFY_UNAUTHORIZED";
+    public static final String FAILURE_CODE_APIFY_CONNECTIVITY = "APIFY_CONNECTIVITY";
+    public static final String FAILURE_CODE_APIFY_ERROR = "APIFY_ERROR";
     public static final String FAILURE_CODE_STALE_TIMEOUT = "STALE_TIMEOUT";
     public static final String SAFE_UNAUTHORIZED_MESSAGE =
         "Apify credentials were rejected. Update APIFY_API_TOKEN.";
@@ -154,17 +157,8 @@ public class LeadFinderService {
             run = runRepository.save(run);
             logger.info("Apify run started: runId={}, datasetId={}", runInfo.runId, runInfo.datasetId);
         } catch (ApifyClient.ApifyException e) {
-            logger.error("Failed to start Apify actor run: unauthorized={}", e.unauthorized);
-            run.setStatus(LeadSourceRunStatus.FAILED);
-            if (e.unauthorized) {
-                run.setFailureCode(FAILURE_CODE_APIFY_UNAUTHORIZED);
-                run.setFailureReason(SAFE_UNAUTHORIZED_MESSAGE);
-            } else {
-                run.setFailureReason(e.getMessage());
-            }
+            applyApifyFailure(run, e, "Failed to start Apify run");
             run = runRepository.save(run);
-            logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR,
-                "Failed to start Apify run", run.getFailureReason());
         }
 
         return mapRun(run);
@@ -199,7 +193,7 @@ public class LeadFinderService {
                 // items); FAILED/ABORTED/TIMED-OUT -> FAILED immediately.
                 if (info.isFinished() && !info.isSucceeded()) {
                     run.setStatus(LeadSourceRunStatus.FAILED);
-                    run.setFailureReason("Apify run status: " + info.status);
+                    run.setFailureReason("The discovery run did not complete successfully.");
                     run.setLastSyncedAt(LocalDateTime.now());
                     runRepository.save(run);
                     logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR,
@@ -254,18 +248,9 @@ public class LeadFinderService {
             logger.info("Synced run {}: {} new discovered leads ({} total)", run.getId(), newCount, total);
 
         } catch (ApifyClient.ApifyException e) {
-            logger.error("Failed to sync Apify run {}: unauthorized={}", run.getId(), e.unauthorized);
-            run.setStatus(LeadSourceRunStatus.FAILED);
-            if (e.unauthorized) {
-                run.setFailureCode(FAILURE_CODE_APIFY_UNAUTHORIZED);
-                run.setFailureReason(SAFE_UNAUTHORIZED_MESSAGE);
-            } else {
-                run.setFailureReason(e.getMessage());
-            }
+            applyApifyFailure(run, e, "Failed to sync Apify run");
             run.setLastSyncedAt(LocalDateTime.now());
             run = runRepository.save(run);
-            logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR,
-                "Failed to sync Apify run", run.getFailureReason());
         }
 
         return mapRun(run);
@@ -376,7 +361,7 @@ public class LeadFinderService {
                 result.getMessages().add(id + ": " + e.getMessage());
             } catch (Exception e) {
                 result.setFailed(result.getFailed() + 1);
-                result.getMessages().add(id + ": " + e.getMessage());
+                result.getMessages().add(id + ": " + SafeErrorMessages.forClient(e));
             }
         }
         return result;
@@ -487,7 +472,7 @@ public class LeadFinderService {
             ApifyClient.ApifyRunInfo info = apifyClient.getRun(run.getApifyRunId());
             if (info.isFinished() && !info.isSucceeded()) {
                 run.setStatus(LeadSourceRunStatus.FAILED);
-                run.setFailureReason("Apify run status: " + info.status);
+                run.setFailureReason("The discovery run did not complete successfully.");
                 run.setLastSyncedAt(LocalDateTime.now());
                 runRepository.save(run);
                 logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR,
@@ -504,18 +489,30 @@ public class LeadFinderService {
             return false;
         } catch (ApifyClient.ApifyException e) {
             if (e.unauthorized) {
-                run.setStatus(LeadSourceRunStatus.FAILED);
-                run.setFailureCode(FAILURE_CODE_APIFY_UNAUTHORIZED);
-                run.setFailureReason(SAFE_UNAUTHORIZED_MESSAGE);
+                applyApifyFailure(run, e, "Reconciled run to FAILED (unauthorized)");
                 run.setLastSyncedAt(LocalDateTime.now());
                 runRepository.save(run);
-                logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR,
-                    "Reconciled run to FAILED (unauthorized)", run.getFailureReason());
                 return true;
             }
-            logger.warn("Reconciliation could not reach Apify for run {}: {}", run.getId(), e.getMessage());
+            logger.warn("Reconciliation could not reach Apify for run {}", run.getId());
             return false;
         }
+    }
+
+    private void applyApifyFailure(LeadSourceRun run, ApifyClient.ApifyException error, String logActionDetail) {
+        run.setStatus(LeadSourceRunStatus.FAILED);
+        if (error.unauthorized) {
+            run.setFailureCode(FAILURE_CODE_APIFY_UNAUTHORIZED);
+            run.setFailureReason(SAFE_UNAUTHORIZED_MESSAGE);
+        } else {
+            String errorId = SafeErrorMessages.newId();
+            logger.error("Apify failure [{}]: {}", errorId, logActionDetail, error);
+            run.setFailureCode(SafeErrorMessages.isTlsOrConnectivity(error)
+                    ? FAILURE_CODE_APIFY_CONNECTIVITY
+                    : FAILURE_CODE_APIFY_ERROR);
+            run.setFailureReason(SafeErrorMessages.forClient(error, errorId));
+        }
+        logAction(ACTION_SEARCH_FAILED, AgentActionStatus.ERROR, logActionDetail, run.getFailureReason());
     }
 
     // ------------------------------------------------------------------
@@ -632,7 +629,7 @@ public class LeadFinderService {
         r.setStatus(run.getStatus());
         r.setTotalResults(run.getTotalResults());
         r.setImportedCount(run.getImportedCount());
-        r.setFailureReason(run.getFailureReason());
+        r.setFailureReason(SafeErrorMessages.sanitize(run.getFailureReason()));
         r.setFailureCode(run.getFailureCode());
         r.setLastSyncedAt(run.getLastSyncedAt());
         r.setCreatedAt(run.getCreatedAt());

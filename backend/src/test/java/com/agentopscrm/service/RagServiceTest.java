@@ -229,6 +229,10 @@ class RagServiceTest {
         // With business profile fallback, status might be COMPLETED if business has good metadata
         // or WEAK_CONTEXT if no useful content
         assertTrue(result.getStatus().equals("WEAK_CONTEXT") || result.getStatus().equals("COMPLETED"));
+        if ("WEAK_CONTEXT".equals(result.getStatus())
+                || AnswerService.INSUFFICIENT_CONTEXT_ANSWER.equals(result.getAnswer())) {
+            assertTrue(result.getSources() == null || result.getSources().isEmpty());
+        }
         assertNotNull(result.getDiagnostics());
     }
 

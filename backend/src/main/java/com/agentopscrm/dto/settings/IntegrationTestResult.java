@@ -16,6 +16,7 @@ public class IntegrationTestResult {
     private String message;
     private Long durationMs;
     private Instant testedAt;
+    private String checkType;
 
     public IntegrationTestResult() {
     }
@@ -75,5 +76,13 @@ public class IntegrationTestResult {
 
     public void setTestedAt(Instant testedAt) {
         this.testedAt = testedAt;
+    }
+
+    public String getCheckType() {
+        return checkType;
+    }
+
+    public void setCheckType(String checkType) {
+        this.checkType = checkType;
     }
 }

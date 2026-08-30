@@ -95,4 +95,30 @@ export const voiceCallsApi = {
     const response = await axios.get(`/voice-calls/${callId}`);
     return response.data.data;
   },
+
+  /**
+   * Download a call recording through the CRM proxy as a playable blob.
+   * Never expose the provider URL to the audio element.
+   */
+  async getRecording(callId: string): Promise<Blob> {
+    const response = await axios.get(`/voice-calls/${callId}/recording`, {
+      responseType: 'blob',
+      timeout: 90000,
+      headers: {
+        Accept: 'audio/*,*/*',
+      },
+    });
+    const rawType = response.headers['content-type'];
+    const type = (typeof rawType === 'string' ? rawType.split(';')[0] : '') || 'audio/mpeg';
+    const data = response.data;
+    if (!(data instanceof Blob) || data.size === 0) {
+      throw new Error('Recording could not be retrieved');
+    }
+    if (type.includes('application/json') || type.includes('text/')) {
+      throw new Error('Recording could not be retrieved');
+    }
+    return data.type && data.type !== 'application/octet-stream'
+      ? data
+      : new Blob([data], { type });
+  },
 };

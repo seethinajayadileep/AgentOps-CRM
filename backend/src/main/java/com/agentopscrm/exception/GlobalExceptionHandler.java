@@ -1,15 +1,23 @@
 package com.agentopscrm.exception;
 
+import com.agentopscrm.util.SafeErrorMessages;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.convert.ConversionFailedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Global exception handler for REST API.
@@ -19,6 +27,8 @@ import java.util.Map;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(BusinessNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleBusinessNotFound(BusinessNotFoundException ex) {
@@ -76,18 +86,71 @@ public class GlobalExceptionHandler {
         ErrorResponse error = new ErrorResponse(
             HttpStatus.BAD_REQUEST.value(),
             "INVALID_ARGUMENT",
-            ex.getMessage(),
+            SafeErrorMessages.sanitize(ex.getMessage()),
             LocalDateTime.now()
         );
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class, ConversionFailedException.class})
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(Exception ex) {
+        String message = "Invalid query parameter.";
+        if (ex instanceof MethodArgumentTypeMismatchException mismatch) {
+            String param = mismatch.getName() == null ? "parameter" : mismatch.getName();
+            message = "Invalid value for '" + param + "'.";
+            Class<?> required = mismatch.getRequiredType();
+            if (required != null && required.isEnum()) {
+                String allowed = Arrays.stream(required.getEnumConstants())
+                        .map(Object::toString)
+                        .collect(Collectors.joining(", "));
+                message = "Invalid value for '" + param + "'. Supported values: " + allowed + ".";
+            }
+        } else if (ex.getCause() instanceof IllegalArgumentException iae && iae.getMessage() != null) {
+            message = SafeErrorMessages.sanitize(iae.getMessage());
+        }
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            "INVALID_PARAMETER",
+            message,
+            LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter(MissingServletRequestParameterException ex) {
+        String param = ex.getParameterName() == null ? "parameter" : ex.getParameterName();
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            "MISSING_PARAMETER",
+            "Missing required parameter '" + param + "'.",
+            LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(
+            org.springframework.dao.DataIntegrityViolationException ex) {
+        String errorId = SafeErrorMessages.newId();
+        log.error("Data integrity violation [{}]", errorId, ex);
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.CONFLICT.value(),
+            "DEPENDENCY_CONFLICT",
+            SafeErrorMessages.DELETE_FAILED + " Reference " + errorId + ".",
+            LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
+        String errorId = SafeErrorMessages.newId();
+        log.error("Unhandled exception [{}]", errorId, ex);
         ErrorResponse error = new ErrorResponse(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),
             "INTERNAL_ERROR",
-            "An unexpected error occurred",
+            "An unexpected error occurred. Reference " + errorId + ".",
             LocalDateTime.now()
         );
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);

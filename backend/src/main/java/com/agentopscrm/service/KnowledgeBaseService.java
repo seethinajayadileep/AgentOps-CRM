@@ -4,6 +4,8 @@ import com.agentopscrm.entity.Business;
 import com.agentopscrm.entity.Document;
 import com.agentopscrm.entity.KnowledgeChunk;
 import com.agentopscrm.entity.enums.AgentActionStatus;
+import com.agentopscrm.entity.enums.KnowledgeBaseJobStatus;
+import com.agentopscrm.util.SafeErrorMessages;
 import com.agentopscrm.exception.BusinessNotFoundException;
 import com.agentopscrm.repository.BusinessRepository;
 import com.agentopscrm.repository.DocumentRepository;
@@ -82,8 +84,20 @@ public class KnowledgeBaseService {
      * @return a {@link BuildResult} with detailed metrics
      * @throws BusinessNotFoundException if the business does not exist
      */
+    @FunctionalInterface
+    public interface BuildProgressListener {
+        void onProgress(KnowledgeBaseJobStatus stage, int documentsProcessed, int documentsTotal,
+                        int chunksCreated, int embeddingsCreated, int percent);
+    }
+
     @Transactional
     public BuildResult buildKnowledgeBase(UUID businessId) throws BusinessNotFoundException {
+        return buildKnowledgeBase(businessId, null);
+    }
+
+    @Transactional
+    public BuildResult buildKnowledgeBase(UUID businessId, BuildProgressListener progress)
+            throws BusinessNotFoundException {
         long startTime = System.currentTimeMillis();
         
         Business business = businessRepository.findById(businessId)
@@ -91,12 +105,13 @@ public class KnowledgeBaseService {
 
         auditLogService.logAgentAction(businessId, AGENT_NAME, "BUILD_KB_STARTED",
                 "{\"businessId\":\"" + businessId + "\"}",
-                "{\"status\":\"started\"}",
+                "{\"status\":\"QUEUED\"}",
                 AgentActionStatus.SUCCESS,
                 0L);
+        notifyProgress(progress, KnowledgeBaseJobStatus.QUEUED, 0, 0, 0, 0, 5);
 
-        // Only documents belonging to THIS business.
         List<Document> documents = documentRepository.findByBusinessId(businessId);
+        notifyProgress(progress, KnowledgeBaseJobStatus.CHUNKING, 0, documents.size(), 0, 0, 20);
 
         // Clean response for the empty-documents case (not an error).
         if (documents.isEmpty()) {
@@ -134,7 +149,7 @@ public class KnowledgeBaseService {
             int embeddingsCreated = 0;
             int skipped = 0;
 
-            // Process ONE document at a time to bound memory.
+            int processedDocs = 0;
             for (UUID documentId : documentIds) {
                 Document document = documentRepository.findById(documentId).orElse(null);
                 if (document == null) {
@@ -181,7 +196,7 @@ public class KnowledgeBaseService {
                             safe(e.getMessage()),
                             System.currentTimeMillis() - startTime);
                     return new BuildResult(false, "EMBEDDING_FAILED",
-                            "Failed to generate embeddings: " + e.getMessage(), businessId,
+                            SafeErrorMessages.KB_FAILED, businessId,
                             documents.size(), chunksCreated, embeddingsCreated, skipped);
                 }
 
@@ -225,10 +240,15 @@ public class KnowledgeBaseService {
                     }
                 }
 
-                // Flush + clear so this document's entities/vectors can be GC'd.
                 entityManager.flush();
                 entityManager.clear();
+                processedDocs++;
+                int embedPercent = 30 + (int) Math.round((processedDocs * 50.0) / Math.max(1, documentIds.size()));
+                notifyProgress(progress, KnowledgeBaseJobStatus.EMBEDDING, processedDocs, documentIds.size(),
+                        chunksCreated, embeddingsCreated, Math.min(80, embedPercent));
             }
+            notifyProgress(progress, KnowledgeBaseJobStatus.INDEXING, documentIds.size(), documentIds.size(),
+                    chunksCreated, embeddingsCreated, 90);
 
             // Validate that we have usable embedded chunks
             if (chunksCreated > 0 && embeddingsCreated == 0) {
@@ -269,7 +289,7 @@ public class KnowledgeBaseService {
                     safe(e.getMessage()),
                     duration);
             return new BuildResult(false, "FAILED",
-                    "Failed to build knowledge base: " + e.getMessage(), businessId,
+                    SafeErrorMessages.KB_FAILED, businessId,
                     documents.size(), 0, 0, 0);
         }
     }
@@ -291,11 +311,24 @@ public class KnowledgeBaseService {
         return Integer.toHexString(content.hashCode());
     }
 
+    private void notifyProgress(BuildProgressListener progress, KnowledgeBaseJobStatus stage,
+                               int documentsProcessed, int documentsTotal,
+                               int chunksCreated, int embeddingsCreated, int percent) {
+        if (progress == null) {
+            return;
+        }
+        try {
+            progress.onProgress(stage, documentsProcessed, documentsTotal, chunksCreated, embeddingsCreated, percent);
+        } catch (Exception e) {
+            log.warn("Knowledge-base progress listener failed: {}", e.getMessage());
+        }
+    }
+
     private String safe(String value) {
         if (value == null) {
             return "";
         }
-        return value.replace("\"", "'").replace("\n", " ");
+        return SafeErrorMessages.sanitizeJson(value.replace("\"", "'").replace("\n", " "));
     }
 
     /**

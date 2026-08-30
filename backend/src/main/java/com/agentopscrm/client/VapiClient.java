@@ -15,6 +15,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
+
 /**
  * Client for interacting with Vapi.ai voice call API.
  * 
@@ -96,6 +98,37 @@ public class VapiClient {
     }
 
     /**
+     * Lightweight assistant lookup. Never starts a phone call.
+     */
+    public void pingAssistant(String assistantId) throws VapiException {
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            throw new VapiException("Vapi API key is not configured");
+        }
+        if (assistantId == null || assistantId.isBlank()) {
+            throw new VapiException("Vapi assistant id is not configured");
+        }
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + apiKey);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(
+                    VAPI_API_BASE_URL + "/assistant/" + assistantId,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    String.class
+            );
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new VapiException("Unexpected status: " + response.getStatusCode().value());
+            }
+        } catch (VapiException e) {
+            throw e;
+        } catch (HttpClientErrorException e) {
+            throw new VapiException("Vapi rejected the stored credentials", e);
+        } catch (Exception e) {
+            throw new VapiException("Vapi health check failed", e);
+        }
+    }
+
+    /**
      * Get details of an existing call by ID.
      *
      * @param callId the Vapi call ID
@@ -144,6 +177,24 @@ public class VapiClient {
             logger.error("Unexpected error calling Vapi API", e);
             throw new VapiException("Unexpected error calling Vapi API: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Download recording bytes from a provider URL. Sends the configured Vapi
+     * token when present. Never logs the URL.
+     */
+    public ResponseEntity<byte[]> downloadMedia(String url) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.USER_AGENT, "AgentOpsCRM/0.2");
+        if (apiKey != null && !apiKey.isBlank()) {
+            headers.setBearerAuth(apiKey);
+        }
+        return restTemplate.exchange(
+            URI.create(url),
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            byte[].class
+        );
     }
 
     /**
@@ -249,6 +300,9 @@ public class VapiClient {
 
         @JsonProperty("recordingUrl")
         public String recordingUrl;
+
+        @JsonProperty("stereoRecordingUrl")
+        public String stereoRecordingUrl;
 
         public Artifact() {}
     }

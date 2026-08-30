@@ -16,11 +16,8 @@ RUN mvn dependency:go-offline -B
 # Copy source code
 COPY src ./src
 
-# Run tests
-RUN mvn test -B
-
-# Package application (skip tests since we already ran them)
-RUN mvn clean package -DskipTests -B
+# Package for Railway. Tests run in CI/local, not in the image build.
+RUN mvn -B -DskipTests package
 
 # ============================================================================
 # Stage 2: Runtime Stage

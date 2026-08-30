@@ -58,6 +58,7 @@ export type KnowledgeBaseJobStatus =
   | 'CRAWLING'
   | 'CHUNKING'
   | 'EMBEDDING'
+  | 'INDEXING'
   | 'COMPLETED'
   | 'PARTIAL'
   | 'FAILED';

@@ -30,6 +30,9 @@ public class AgentLogResponse {
     private String inputJson;
     private String outputJson;
     private String errorMessage;
+    private String errorCategory;
+    private String correlationId;
+    private String recommendedAction;
 
     public AgentLogResponse() {
     }
@@ -178,5 +181,29 @@ public class AgentLogResponse {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public String getErrorCategory() {
+        return errorCategory;
+    }
+
+    public void setErrorCategory(String errorCategory) {
+        this.errorCategory = errorCategory;
+    }
+
+    public String getCorrelationId() {
+        return correlationId;
+    }
+
+    public void setCorrelationId(String correlationId) {
+        this.correlationId = correlationId;
+    }
+
+    public String getRecommendedAction() {
+        return recommendedAction;
+    }
+
+    public void setRecommendedAction(String recommendedAction) {
+        this.recommendedAction = recommendedAction;
     }
 }

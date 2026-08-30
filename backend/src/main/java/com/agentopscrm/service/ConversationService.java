@@ -17,6 +17,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import org.slf4j.Logger;
@@ -50,6 +52,7 @@ public class ConversationService {
     private static final Logger logger = LoggerFactory.getLogger(ConversationService.class);
     private static final int MAX_PREVIEW_LENGTH = 100;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_SEARCH_LENGTH = 200;
 
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
@@ -91,84 +94,24 @@ public class ConversationService {
 
         // Cap page size
         size = Math.min(size, MAX_PAGE_SIZE);
-
-        // Parse dates safely
-        LocalDateTime startDate = null;
-        LocalDateTime endDate = null;
-        if (startDateStr != null && !startDateStr.trim().isEmpty()) {
-            try {
-                startDate = LocalDate.parse(startDateStr).atStartOfDay();
-            } catch (DateTimeParseException e) {
-                logger.warn("Invalid startDate format: {}", startDateStr);
-            }
+        if (page < 0) {
+            throw new IllegalArgumentException("page must be 0 or greater");
         }
-        if (endDateStr != null && !endDateStr.trim().isEmpty()) {
-            try {
-                endDate = LocalDate.parse(endDateStr).atTime(LocalTime.MAX);
-            } catch (DateTimeParseException e) {
-                logger.warn("Invalid endDate format: {}", endDateStr);
-            }
+        if (search != null && search.length() > MAX_SEARCH_LENGTH) {
+            throw new IllegalArgumentException("search must be " + MAX_SEARCH_LENGTH + " characters or fewer");
         }
 
-        // Build criteria query for conversations
+        LocalDateTime startDate = parseIsoDate(startDateStr, true);
+        LocalDateTime endDate = parseIsoDate(endDateStr, false);
+
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
         CriteriaQuery<Conversation> criteriaQuery = cb.createQuery(Conversation.class);
         Root<Conversation> root = criteriaQuery.from(Conversation.class);
 
-        // Join business eagerly to avoid N+1
-        root.fetch("business");
-
-        List<Predicate> predicates = new ArrayList<>();
-
-        // Search filter (safe, case-insensitive)
-        if (search != null && !search.trim().isEmpty()) {
-            String searchLower = "%" + search.trim().toLowerCase() + "%";
-            Predicate searchPredicate = cb.or(
-                    cb.like(cb.lower(cb.toString(root.get("id"))), searchLower),
-                    cb.like(cb.lower(root.get("customerName")), searchLower),
-                    cb.like(cb.lower(root.get("customerEmail")), searchLower),
-                    cb.like(cb.lower(root.get("customerPhone")), searchLower),
-                    cb.like(cb.lower(root.get("business").get("name")), searchLower),
-                    cb.like(cb.lower(root.get("summary")), searchLower)
-            );
-            predicates.add(searchPredicate);
-        }
-
-        // Business filter
-        if (businessId != null) {
-            predicates.add(cb.equal(root.get("business").get("id"), businessId));
-        }
-
-        // Status filter
-        if (status != null) {
-            predicates.add(cb.equal(root.get("status"), status));
-        }
-
-        // Channel filter
-        if (channel != null) {
-            predicates.add(cb.equal(root.get("channel"), channel));
-        }
-
-        // Lead capture status filter
-        if (leadCaptureStatus != null && !leadCaptureStatus.trim().isEmpty()) {
-            if (leadCaptureStatus.equalsIgnoreCase("null") || leadCaptureStatus.equalsIgnoreCase("none")) {
-                predicates.add(cb.isNull(root.get("leadCaptureStatus")));
-            } else {
-                predicates.add(cb.equal(root.get("leadCaptureStatus"), leadCaptureStatus));
-            }
-        }
-
-        // Date range filter
-        if (startDate != null) {
-            predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), startDate));
-        }
-        if (endDate != null) {
-            predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), endDate));
-        }
-
+        List<Predicate> predicates = buildConversationPredicates(
+                cb, root, search, businessId, status, channel, leadCaptureStatus, startDate, endDate, true);
         criteriaQuery.where(predicates.toArray(new Predicate[0]));
 
-        // Sorting
         Sort.Direction direction = Sort.Direction.DESC;
         String sortProperty = "updatedAt";
         if (sortStr != null && !sortStr.trim().isEmpty()) {
@@ -186,17 +129,17 @@ public class ConversationService {
             criteriaQuery.orderBy(cb.desc(root.get(sortProperty)), cb.desc(root.get("createdAt")));
         }
 
-        // Execute query with pagination
         TypedQuery<Conversation> query = entityManager.createQuery(criteriaQuery);
         query.setFirstResult(page * size);
         query.setMaxResults(size);
         List<Conversation> conversations = query.getResultList();
 
-        // Count total (for pagination)
         CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
         Root<Conversation> countRoot = countQuery.from(Conversation.class);
         countQuery.select(cb.count(countRoot));
-        countQuery.where(predicates.toArray(new Predicate[0]));
+        List<Predicate> countPredicates = buildConversationPredicates(
+                cb, countRoot, search, businessId, status, channel, leadCaptureStatus, startDate, endDate, false);
+        countQuery.where(countPredicates.toArray(new Predicate[0]));
         long total = entityManager.createQuery(countQuery).getSingleResult();
 
         // Map to DTO
@@ -207,6 +150,80 @@ public class ConversationService {
         int totalPages = (int) Math.ceil((double) total / size);
         PaginationMeta pagination = new PaginationMeta(page, size, total, totalPages);
         return new PaginatedResponse<>(items, pagination);
+    }
+
+    private LocalDateTime parseIsoDate(String value, boolean startOfDay) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            LocalDate date = LocalDate.parse(value.trim());
+            return startOfDay ? date.atStartOfDay() : date.atTime(LocalTime.MAX);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Invalid date. Use ISO format YYYY-MM-DD.");
+        }
+    }
+
+    private List<Predicate> buildConversationPredicates(
+            CriteriaBuilder cb,
+            Root<Conversation> root,
+            String search,
+            UUID businessId,
+            ConversationStatus status,
+            Channel channel,
+            String leadCaptureStatus,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            boolean fetchBusiness) {
+        List<Predicate> predicates = new ArrayList<>();
+        Join<Conversation, Business> businessJoin;
+        if (fetchBusiness) {
+            @SuppressWarnings("unchecked")
+            Join<Conversation, Business> fetched =
+                    (Join<Conversation, Business>) (Join<?, ?>) root.fetch("business", JoinType.LEFT);
+            businessJoin = fetched;
+        } else {
+            businessJoin = root.join("business", JoinType.LEFT);
+        }
+
+        if (search != null && !search.trim().isEmpty()) {
+            String pattern = "%" + escapeLike(search.trim().toLowerCase()) + "%";
+            predicates.add(cb.or(
+                    cb.like(cb.lower(cb.coalesce(root.get("customerName"), "")), pattern, '\\'),
+                    cb.like(cb.lower(cb.coalesce(root.get("customerEmail"), "")), pattern, '\\'),
+                    cb.like(cb.lower(cb.coalesce(root.get("customerPhone"), "")), pattern, '\\'),
+                    cb.like(cb.lower(cb.coalesce(businessJoin.get("name"), "")), pattern, '\\'),
+                    cb.like(cb.lower(cb.coalesce(root.get("summary"), "")), pattern, '\\')
+            ));
+        }
+
+        if (businessId != null) {
+            predicates.add(cb.equal(businessJoin.get("id"), businessId));
+        }
+        if (status != null) {
+            predicates.add(cb.equal(root.get("status"), status));
+        }
+        if (channel != null) {
+            predicates.add(cb.equal(root.get("channel"), channel));
+        }
+        if (leadCaptureStatus != null && !leadCaptureStatus.trim().isEmpty()) {
+            if (leadCaptureStatus.equalsIgnoreCase("null") || leadCaptureStatus.equalsIgnoreCase("none")) {
+                predicates.add(cb.isNull(root.get("leadCaptureStatus")));
+            } else {
+                predicates.add(cb.equal(root.get("leadCaptureStatus"), leadCaptureStatus));
+            }
+        }
+        if (startDate != null) {
+            predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), startDate));
+        }
+        if (endDate != null) {
+            predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), endDate));
+        }
+        return predicates;
+    }
+
+    static String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /**

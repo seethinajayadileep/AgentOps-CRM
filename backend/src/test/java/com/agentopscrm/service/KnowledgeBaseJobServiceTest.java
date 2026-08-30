@@ -6,6 +6,7 @@ import com.agentopscrm.entity.enums.KnowledgeBaseJobStatus;
 import com.agentopscrm.exception.BusinessNotFoundException;
 import com.agentopscrm.repository.BusinessRepository;
 import com.agentopscrm.repository.KnowledgeBaseJobRepository;
+import com.agentopscrm.service.EmbeddingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,12 +43,14 @@ class KnowledgeBaseJobServiceTest {
     @Mock private KnowledgeBaseJobRepository jobRepository;
     @Mock private BusinessRepository businessRepository;
     @Mock private KnowledgeBaseAsyncRunner asyncRunner;
+    @Mock private EmbeddingService embeddingService;
 
     private KnowledgeBaseJobService service;
 
     @BeforeEach
     void setUp() {
-        service = new KnowledgeBaseJobService(jobRepository, businessRepository, asyncRunner);
+        service = new KnowledgeBaseJobService(jobRepository, businessRepository, asyncRunner, embeddingService);
+        lenient().when(embeddingService.isConfigured()).thenReturn(true);
         ReflectionTestUtils.setField(service, "staleTimeoutMinutes", 15L);
         lenient().when(jobRepository.save(any(KnowledgeBaseJob.class))).thenAnswer(inv -> {
             KnowledgeBaseJob job = inv.getArgument(0);
@@ -80,6 +83,12 @@ class KnowledgeBaseJobServiceTest {
 
         assertThrows(BusinessNotFoundException.class, () -> service.startBuild(businessId));
         verify(asyncRunner, never()).runBuild(any(), any());
+    }
+
+    @Test
+    void indexingStatusIsActiveSoRefreshKeepsPolling() {
+        assertTrue(KnowledgeBaseJobStatus.INDEXING.isActive());
+        assertFalse(KnowledgeBaseJobStatus.COMPLETED.isActive());
     }
 
     @Test

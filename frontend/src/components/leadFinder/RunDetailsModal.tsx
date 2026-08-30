@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { X, RefreshCw, RotateCcw } from 'lucide-react';
 import type { LeadSourceRun } from '../../types/leadFinder';
 import StatusBadge from '../ui/StatusBadge';
+import Modal from '../ui/Modal';
+import { safeClientError } from '../../util/safeClientError';
 
 interface RunDetailsModalProps {
   run: LeadSourceRun;
@@ -10,10 +12,10 @@ interface RunDetailsModalProps {
 }
 
 /**
- * Run Details modal (Bug 4 requirement): shows search parameters, local status,
- * Apify run/dataset id, result/import counts, timestamps, and a safe failure
- * reason. Provides Refresh (manual sync) and Retry (for FAILED runs) actions.
- */
+  * Run Details modal (Bug 4 requirement): shows search parameters, local status,
+  * Apify run/dataset id, result/import counts, timestamps, and a safe failure
+  * reason. Provides Refresh (manual sync) and Retry (for FAILED runs) actions.
+  */
 export default function RunDetailsModal({ run, onClose, onSync }: RunDetailsModalProps) {
   const [syncing, setSyncing] = useState(false);
 
@@ -33,19 +35,10 @@ export default function RunDetailsModal({ run, onClose, onSync }: RunDetailsModa
     Date.now() - new Date(run.lastSyncedAt).getTime() > 30 * 60 * 1000;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal title="Run Details" onClose={onClose} className="max-w-2xl p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Run Details</h2>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-100" aria-label="Close">
+          <h2 className="text-lg font-semibold text-ink">Run Details</h2>
+          <button onClick={onClose} className="text-slate hover:text-ink" aria-label="Close">
             <X size={20} />
           </button>
         </div>
@@ -66,13 +59,13 @@ export default function RunDetailsModal({ run, onClose, onSync }: RunDetailsModa
             <Field label="Location" value={run.location} />
             <Field label="Keywords" value={run.keywords} />
             <Field label="Max Results" value={run.maxResults?.toString()} />
-            <Field label="Actor ID" value={run.actorId} />
+            <Field label="Actor" value={run.actorId ? 'Recorded' : '—'} />
           </Section>
 
           <Section title="Apify Status">
             <Field label="Local Status" value={run.status} />
-            <Field label="Apify Run ID" value={run.apifyRunId} mono />
-            <Field label="Apify Dataset ID" value={run.apifyDatasetId} mono />
+            <Field label="Provider run" value={run.apifyRunId ? 'Recorded' : '—'} />
+            <Field label="Provider dataset" value={run.apifyDatasetId ? 'Recorded' : '—'} />
             <Field label="Last Synced" value={formatDate(run.lastSyncedAt)} />
           </Section>
 
@@ -88,12 +81,12 @@ export default function RunDetailsModal({ run, onClose, onSync }: RunDetailsModa
         </div>
 
         {run.status === 'FAILED' && (
-          <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-            <div className="text-xs font-semibold uppercase tracking-wide text-red-400">
+          <div className="mt-4 rounded-lg border border-frost bg-mist p-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-ink">
               {run.failureCode || 'Failure Reason'}
             </div>
-            <div className="mt-1 text-sm text-red-300">
-              {run.failureReason || 'This run failed for an unknown reason.'}
+            <div className="mt-1 text-sm text-ink">
+              {safeClientError(run.failureReason, 'This run failed. Check Lead Finder settings and try again.')}
             </div>
           </div>
         )}
@@ -110,15 +103,14 @@ export default function RunDetailsModal({ run, onClose, onSync }: RunDetailsModa
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-white/[0.02] p-3">
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">{title}</div>
+    <div className="rounded-lg bg-mist p-3">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate">{title}</div>
       <div className="space-y-1.5">{children}</div>
     </div>
   );
@@ -127,8 +119,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, value, mono }: { label: string; value?: string | null; mono?: boolean }) {
   return (
     <div className="flex justify-between text-sm">
-      <span className="text-zinc-500">{label}</span>
-      <span className={`text-zinc-200 ${mono ? 'font-mono text-xs' : ''}`}>{value || '—'}</span>
+      <span className="text-slate">{label}</span>
+      <span className={`text-ink ${mono ? 'font-mono text-xs' : ''}`}>{value || '—'}</span>
     </div>
   );
 }

@@ -7,7 +7,7 @@ interface LeadScoreBadgeProps {
 
 export const LeadScoreBadge: React.FC<LeadScoreBadgeProps> = ({ score }) => {
   if (score === undefined || score === null) {
-    return <span className="text-zinc-500">-</span>;
+    return <span className="text-slate">-</span>;
   }
 
   const getColor = (s: number): BadgeColor => {

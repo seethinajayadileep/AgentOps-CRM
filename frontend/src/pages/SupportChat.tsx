@@ -15,9 +15,9 @@ interface Message {
 }
 
 /**
- * Support Chat test page
- * Feature ID: F-005
- */
+  * Support Chat test page
+  * Feature ID: F-005
+  */
 export default function SupportChat() {
   const { businessId } = useParams<{ businessId: string }>();
   const navigate = useNavigate();
@@ -114,20 +114,20 @@ export default function SupportChat() {
       <div className="mb-6">
         <button
           onClick={handleBack}
-          className="mb-4 inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-100"
+          className="mb-4 inline-flex items-center gap-2 text-sm text-slate hover:text-ink"
         >
           <ArrowLeft size={18} />
           Back to Business
         </button>
         <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] shadow-[0_0_20px_rgba(139,92,246,0.3)]">
-            <Sparkles size={22} className="text-white" />
+          <span className="flex h-11 w-11 items-center justify-center rounded-sm bg-ink ">
+            <Sparkles size={22} className="text-snow" />
           </span>
           <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-white">
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
               Support Chat <Badge color="purple">AI Agent</Badge>
             </h1>
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-slate">
               AI answers from the business knowledge base and can collect leads when customers are interested.
             </p>
           </div>
@@ -135,9 +135,9 @@ export default function SupportChat() {
       </div>
 
       {error && (
-        <div className="mb-4 flex items-start justify-between rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+        <div className="mb-4 flex items-start justify-between rounded-sm border border-frost bg-mist p-4 text-ink">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-4 font-bold text-red-300 hover:text-red-200">
+          <button onClick={() => setError(null)} className="ml-4 font-bold text-ink hover:text-ink">
             ×
           </button>
         </div>
@@ -149,11 +149,11 @@ export default function SupportChat() {
         <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
           {messages.length === 0 && (
             <div className="flex h-full flex-col items-center justify-center text-center">
-              <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5">
-                <Bot className="h-8 w-8 text-primary-400" />
+              <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-sm bg-mist">
+                <Bot className="h-8 w-8 text-slate" />
               </span>
-              <h2 className="mb-2 text-xl font-semibold text-zinc-200">Start a conversation</h2>
-              <p className="max-w-md text-zinc-500">
+              <h2 className="mb-2 text-xl font-semibold text-ink">Start a conversation</h2>
+              <p className="max-w-md text-slate">
                 Ask any question about the business and the AI agent will answer using only the knowledge base
                 information.
               </p>
@@ -170,17 +170,17 @@ export default function SupportChat() {
                   <span
                     className={`mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${
                       isUser
-                        ? 'bg-blue-500/20 text-blue-300'
-                        : 'bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] text-white'
+                        ? 'bg-mist text-ink'
+                        : 'bg-ink text-snow'
                     }`}
                   >
                     {isUser ? <User size={16} /> : <Bot size={16} />}
                   </span>
                   <div
-                    className={`rounded-2xl p-4 ${
+                    className={`rounded-sm p-4 ${
                       isUser
-                        ? 'bg-gradient-to-br from-[#3B82F6] to-[#2563EB] text-white'
-                        : 'border border-white/[0.08] bg-white/[0.04] text-zinc-100 backdrop-blur-md'
+                        ? 'bg-gradient-to-br from-slate to-silver text-ink'
+                        : 'border border-frost bg-mist text-ink '
                     }`}
                   >
                     <div className="mb-1 flex items-center gap-2">
@@ -206,14 +206,14 @@ export default function SupportChat() {
                           {message.evaluation.hallucinationRisk} risk
                         </Badge>
                         {message.evaluation.reason && (
-                          <p className="mt-1 text-xs italic text-zinc-400">{message.evaluation.reason}</p>
+                          <p className="mt-1 text-xs italic text-slate">{message.evaluation.reason}</p>
                         )}
                       </div>
                     )}
 
                     {!isUser && !hideMeta && message.sources && message.sources.length > 0 && (
-                      <div className="mt-3 border-t border-white/[0.08] pt-3">
-                        <p className="mb-2 text-xs font-semibold text-zinc-400">Sources</p>
+                      <div className="mt-3 border-t border-frost pt-3">
+                        <p className="mb-2 text-xs font-semibold text-slate">Sources</p>
                         <div className="flex flex-wrap gap-2">
                           {message.sources.map((source, idx) => (
                             <a
@@ -221,7 +221,7 @@ export default function SupportChat() {
                               href={source}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex max-w-[260px] items-center gap-1 rounded-full border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-xs text-blue-300 hover:bg-white/[0.08]"
+                              className="inline-flex max-w-[260px] items-center gap-1 rounded-full border border-frost bg-mist px-2.5 py-1 text-xs text-ink hover:bg-frost"
                             >
                               <Globe size={11} />
                               <span className="truncate">{source}</span>
@@ -231,7 +231,7 @@ export default function SupportChat() {
                       </div>
                     )}
 
-                    <p className={`mt-2 text-xs ${isUser ? 'text-blue-100/80' : 'text-zinc-500'}`}>
+                    <p className={`mt-2 text-xs ${isUser ? 'text-slate' : 'text-slate'}`}>
                       {message.timestamp.toLocaleTimeString()}
                     </p>
                   </div>
@@ -242,14 +242,14 @@ export default function SupportChat() {
 
           {loading && (
             <div className="flex justify-start">
-              <div className="flex items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
-                <Bot size={16} className="text-primary-400" />
+              <div className="flex items-center gap-2 rounded-sm border border-frost bg-mist p-4">
+                <Bot size={16} className="text-slate" />
                 <div className="flex gap-1">
-                  <div className="h-2 w-2 animate-bounce rounded-full bg-zinc-500" style={{ animationDelay: '0ms' }} />
-                  <div className="h-2 w-2 animate-bounce rounded-full bg-zinc-500" style={{ animationDelay: '150ms' }} />
-                  <div className="h-2 w-2 animate-bounce rounded-full bg-zinc-500" style={{ animationDelay: '300ms' }} />
+                  <div className="h-2 w-2 animate-bounce rounded-full bg-slate" style={{ animationDelay: '0ms' }} />
+                  <div className="h-2 w-2 animate-bounce rounded-full bg-slate" style={{ animationDelay: '150ms' }} />
+                  <div className="h-2 w-2 animate-bounce rounded-full bg-slate" style={{ animationDelay: '300ms' }} />
                 </div>
-                <span className="text-sm text-zinc-400">Thinking…</span>
+                <span className="text-sm text-slate">Thinking…</span>
               </div>
             </div>
           )}
@@ -258,7 +258,7 @@ export default function SupportChat() {
         </div>
 
         {/* Sticky Input */}
-        <div className="border-t border-white/[0.08] bg-black/30 p-4 backdrop-blur-md">
+        <div className="border-t border-frost bg-snow p-4 ">
           <div className="flex gap-2">
             <textarea
               className="input-dark flex-1 resize-none"
@@ -274,7 +274,7 @@ export default function SupportChat() {
               Send
             </button>
           </div>
-          <p className="mt-2 text-xs text-zinc-500">
+          <p className="mt-2 text-xs text-slate">
             The AI answers using only the business knowledge base and can collect leads when customers are interested.
           </p>
         </div>

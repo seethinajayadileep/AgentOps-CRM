@@ -1,30 +1,30 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MessageSquare, RefreshCw, Search, X, ArrowLeft } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
 import LoadingState from '../components/ui/LoadingState';
 import EmptyState from '../components/ui/EmptyState';
-import ConversationStatusBadge from '../components/conversations/ConversationStatusBadge';
 import ChannelBadge from '../components/conversations/ChannelBadge';
 import StatusBadge from '../components/ui/StatusBadge';
+import ErrorBanner from '../components/ui/ErrorBanner';
 import ToastContainer from '../components/ui/ToastContainer';
 import { useToast } from '../hooks/useToast';
 import { conversationsApi } from '../api/conversationsApi';
+import { ConversationStatus } from '../types/conversation';
 import type {
   ConversationListItem,
   ConversationDetail,
   ConversationMessage,
   ConversationSummary,
-  ConversationStatus,
 } from '../types/conversation';
 
 /**
- * Conversations admin page - Intercom-style operational inbox.
- *
- * @version 0.3.0
- * Feature: F-009 - Conversations Admin Page
- */
+  * Conversations admin page - Intercom-style operational inbox.
+  *
+  * @version 0.3.0
+  * Feature: F-009 - Conversations Admin Page
+  */
 export default function Conversations() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { toasts, showToast, closeToast } = useToast();
@@ -39,18 +39,45 @@ export default function Conversations() {
   const [error, setError] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
+  const VALID_STATUSES: ConversationStatus[] = [
+    ConversationStatus.ACTIVE,
+    ConversationStatus.PAUSED,
+    ConversationStatus.CLOSED,
+    ConversationStatus.ARCHIVED,
+  ];
+
   // Filters from URL
   const search = searchParams.get('search') || '';
-  const statusFilter = searchParams.get('status') as ConversationStatus | null;
-  const [searchInput, setSearchInput] = useState(search);
+  const rawStatus = searchParams.get('status');
+  const statusFilter =
+    rawStatus && VALID_STATUSES.includes(rawStatus as ConversationStatus)
+      ? (rawStatus as ConversationStatus)
+      : null;
+  const hasInvalidStatus = Boolean(rawStatus && !statusFilter);
+  const [typedSearch, setTypedSearch] = useState(search);
+  const [listPage, setListPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalElements, setTotalElements] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const PAGE_SIZE = 20;
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const fetchGeneration = useRef(0);
 
   // Mobile view state
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => {
+    setTypedSearch(search);
+  }, [search]);
+
+  useEffect(() => {
     loadSummary();
-    loadConversations();
-  }, [searchParams]);
+    void loadConversations(false, 0, false, {
+      search: search || null,
+      status: statusFilter,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
 
   const loadSummary = async () => {
     try {
@@ -61,21 +88,60 @@ export default function Conversations() {
     }
   };
 
-  const loadConversations = async (silent = false) => {
+  const loadConversations = async (
+    silent = false,
+    nextPage = 0,
+    append = false,
+    overrides?: { search?: string | null; status?: ConversationStatus | null }
+  ) => {
+    const generation = append ? fetchGeneration.current : ++fetchGeneration.current;
     try {
-      if (!silent) setLoading(true);
+      if (append) setLoadingMore(true);
+      else if (!silent) {
+        setLoading(true);
+        setConversations([]);
+      }
+      setError(null);
+      const requestedStatus =
+        overrides && 'status' in overrides ? overrides.status : searchParams.get('status');
+      const requestedSearch =
+        overrides && 'search' in overrides ? overrides.search : searchParams.get('search');
+      const trimmedSearch = requestedSearch?.trim() || undefined;
       const filters = {
-        search: searchParams.get('search') || undefined,
-        status: (searchParams.get('status') as ConversationStatus) || undefined,
+        search: trimmedSearch,
+        status:
+          requestedStatus && VALID_STATUSES.includes(requestedStatus as ConversationStatus)
+            ? (requestedStatus as ConversationStatus)
+            : undefined,
+        page: nextPage,
+        size: PAGE_SIZE,
       };
       const response = await conversationsApi.getAllConversations(filters);
-      setConversations(response.items);
-      setError(null);
+      if (generation !== fetchGeneration.current) {
+        return;
+      }
+      setConversations((prev) => (append ? [...prev, ...response.items] : response.items));
+      setListPage(response.pagination.page);
+      setTotalElements(response.pagination.totalElements);
+      setHasMore(response.pagination.page + 1 < response.pagination.totalPages);
     } catch (err: any) {
+      if (generation !== fetchGeneration.current) {
+        return;
+      }
       setError(err.message || 'Failed to load conversations');
+      if (!append) setConversations([]);
     } finally {
-      setLoading(false);
+      if (generation === fetchGeneration.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
+  };
+
+  const dismissPanel = () => {
+    setSelectedConversation(null);
+    setShowDetail(false);
+    setMessages([]);
   };
 
   const loadConversationDetail = async (id: string) => {
@@ -119,14 +185,32 @@ export default function Conversations() {
     }
   };
 
-  const handleSearch = () => {
-    const params = new URLSearchParams(searchParams);
-    if (searchInput) {
-      params.set('search', searchInput);
-    } else {
-      params.delete('search');
-    }
-    setSearchParams(params);
+  const applySearch = (raw: string) => {
+    const trimmed = raw.trim().slice(0, 200);
+    setListPage(0);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (trimmed) {
+          params.set('search', trimmed);
+        } else {
+          params.delete('search');
+        }
+        return params;
+      },
+      { replace: true }
+    );
+    setTypedSearch(trimmed);
+    void loadConversations(false, 0, false, {
+      search: trimmed || null,
+      status: statusFilter,
+    });
+  };
+
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const live = String(new FormData(event.currentTarget).get('conversation-search') ?? '');
+    applySearch(live);
   };
 
   const handleStatusFilter = (status: ConversationStatus | null) => {
@@ -140,8 +224,10 @@ export default function Conversations() {
   };
 
   const clearFilters = () => {
-    setSearchInput('');
-    setSearchParams({});
+    setListPage(0);
+    setTypedSearch('');
+    setSearchParams({}, { replace: true });
+    void loadConversations(false, 0, false, { search: null, status: null });
   };
 
   const formatRelativeTime = (dateStr?: string): string => {
@@ -159,22 +245,10 @@ export default function Conversations() {
     return date.toLocaleDateString();
   };
 
-  if (loading && !summary) {
-    return <LoadingState label="Loading conversations…" />;
-  }
+  const filtersActive = Boolean(search || statusFilter || hasInvalidStatus);
 
-  if (error) {
-    return (
-      <div className="p-6">
-        <PageHeader title="Conversations" subtitle="Monitor customer conversations handled by your AI support agent" />
-        <div className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
-          Error: {error}
-          <button onClick={() => loadConversations()} className="ml-4 text-red-200 underline">
-            Retry
-          </button>
-        </div>
-      </div>
-    );
+  if (loading && !summary && !error) {
+    return <LoadingState label="Loading conversations…" />;
   }
 
   return (
@@ -187,45 +261,56 @@ export default function Conversations() {
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <Card className="p-4">
-            <div className="text-sm text-zinc-500">Total</div>
-            <div className="text-2xl font-semibold text-zinc-100">{summary.totalConversations}</div>
+            <div className="text-sm text-slate">Total</div>
+            <div className="text-2xl font-semibold text-ink">{summary.totalConversations}</div>
           </Card>
           <Card className="p-4">
-            <div className="text-sm text-zinc-500">Active</div>
-            <div className="text-2xl font-semibold text-green-400">{summary.activeConversations}</div>
+            <div className="text-sm text-slate">Active</div>
+            <div className="text-2xl font-semibold text-ink">{summary.activeConversations}</div>
           </Card>
           <Card className="p-4">
-            <div className="text-sm text-zinc-500">Today</div>
-            <div className="text-2xl font-semibold text-cyan-400">{summary.conversationsToday}</div>
+            <div className="text-sm text-slate">Today</div>
+            <div className="text-2xl font-semibold font-serif text-ink">{summary.conversationsToday}</div>
           </Card>
           <Card className="p-4">
-            <div className="text-sm text-zinc-500">Leads Captured</div>
-            <div className="text-2xl font-semibold text-purple-400">{summary.leadsCaptured}</div>
+            <div className="text-sm text-slate">Leads Captured</div>
+            <div className="text-2xl font-semibold font-serif text-ink">{summary.leadsCaptured}</div>
           </Card>
           <Card className="p-4">
-            <div className="text-sm text-zinc-500">Avg Messages</div>
-            <div className="text-2xl font-semibold text-zinc-100">{summary.averageMessagesPerConversation.toFixed(1)}</div>
+            <div className="text-sm text-slate">Avg Messages</div>
+            <div className="text-2xl font-semibold text-ink">{summary.averageMessagesPerConversation.toFixed(1)}</div>
           </Card>
         </div>
       )}
 
       {/* Filters */}
       <Card className="p-4 mb-6">
-        <div className="flex flex-wrap gap-3">
+        <form className="flex flex-wrap gap-3" onSubmit={handleSearchSubmit} autoComplete="off">
           <div className="flex-1 min-w-[200px]">
+            <label htmlFor="conversation-search" className="sr-only">
+              Search conversations
+            </label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate" size={18} />
               <input
+                id="conversation-search"
+                ref={searchInputRef}
                 type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                name="conversation-search"
+                value={typedSearch}
+                autoComplete="off"
+                onChange={(e) => setTypedSearch(e.target.value.slice(0, 200))}
                 placeholder="Search conversations..."
+                maxLength={200}
                 className="input-dark pl-10 w-full"
               />
             </div>
           </div>
+          <label htmlFor="conversation-status-filter" className="sr-only">
+            Status
+          </label>
           <select
+            id="conversation-status-filter"
             value={statusFilter || ''}
             onChange={(e) => handleStatusFilter(e.target.value as ConversationStatus || null)}
             className="input-dark w-36"
@@ -236,64 +321,107 @@ export default function Conversations() {
             <option value="CLOSED">Closed</option>
             <option value="ARCHIVED">Archived</option>
           </select>
-          <button onClick={handleSearch} className="btn-secondary px-4">
+          <button type="submit" className="btn-secondary px-4" aria-label="Search conversations">
             <Search size={18} />
           </button>
-          <button onClick={() => { loadConversations(); loadSummary(); }} className="btn-secondary px-4">
+          <button
+            type="button"
+            onClick={() => {
+              loadConversations();
+              loadSummary();
+            }}
+            className="btn-secondary px-4"
+            aria-label="Refresh conversations"
+          >
             <RefreshCw size={18} />
           </button>
-          {(search || statusFilter) && (
-            <button onClick={clearFilters} className="btn-secondary px-4">
+          {filtersActive && (
+            <button type="button" onClick={clearFilters} className="btn-secondary px-4">
               <X size={18} /> Clear
             </button>
           )}
-        </div>
+        </form>
       </Card>
 
+      {error && (
+        <ErrorBanner
+          message={error}
+          onRetry={() => {
+            loadConversations();
+            loadSummary();
+          }}
+          onClear={filtersActive ? clearFilters : undefined}
+        />
+      )}
+
       {/* Main Content */}
-      {conversations.length === 0 ? (
+      {error ? null : loading && conversations.length === 0 ? (
+        <LoadingState label="Loading conversations…" />
+      ) : conversations.length === 0 ? (
         <EmptyState
           icon={<MessageSquare size={26} />}
-          title={search || statusFilter ? 'No conversations match these filters' : 'No conversations yet'}
-          description={search || statusFilter ? 'Try adjusting your filters.' : 'Conversations will appear here when customers interact with your AI support agent.'}
+          title={filtersActive ? 'No conversations match these filters' : 'No conversations yet'}
+          description={filtersActive ? 'Try adjusting your filters.' : 'Conversations will appear here when customers interact with your AI support agent.'}
         />
       ) : (
         <div className="flex-1 overflow-hidden">
           <Card className="h-full flex">
             {/* Conversation List - Desktop: Left Panel, Mobile: Full width when detail hidden */}
-            <div className={`${showDetail ? 'hidden md:block' : 'block'} w-full md:w-96 border-r border-white/[0.06] overflow-y-auto`}>
+            <div className={`${showDetail ? 'hidden md:block' : 'block'} w-full md:w-96 border-r border-frost overflow-y-auto`}>
+              {totalElements > 0 && (
+                <div className="px-4 py-2 text-xs text-slate border-b border-frost">
+                  Showing {conversations.length} of {totalElements}
+                </div>
+              )}
               {conversations.map((conv) => (
                 <button
                   key={conv.id}
                   onClick={() => loadConversationDetail(conv.id)}
-                  className={`w-full text-left p-4 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors ${
-                    selectedConversation?.id === conv.id ? 'bg-white/[0.03]' : ''
+                  className={`w-full text-left p-4 border-b border-frost hover:bg-mist transition-colors ${
+                    selectedConversation?.id === conv.id ? 'bg-mist' : ''
                   }`}
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <div className="font-medium text-zinc-100">{conv.customerName || 'Anonymous'}</div>
-                    <div className="text-xs text-zinc-500">{formatRelativeTime(conv.latestMessageAt)}</div>
+                    <div className="font-medium text-ink">{conv.customerName || 'Anonymous'}</div>
+                    <div className="text-xs text-slate">{formatRelativeTime(conv.latestMessageAt)}</div>
                   </div>
-                  {conv.customerEmail && <div className="text-sm text-zinc-500 mb-2">{conv.customerEmail}</div>}
+                  {conv.customerEmail && <div className="text-sm text-slate mb-2">{conv.customerEmail}</div>}
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <ConversationStatusBadge status={conv.status} />
-                    <div className="text-xs text-zinc-600">{conv.businessName}</div>
+                    <StatusBadge status={conv.status} />
+                    <div className="text-xs text-silver">{conv.businessName}</div>
                   </div>
                   {conv.latestMessagePreview && (
-                    <div className="text-sm text-zinc-400 truncate">{conv.latestMessagePreview}</div>
+                    <div className="text-sm text-slate truncate">{conv.latestMessagePreview}</div>
                   )}
-                  <div className="flex items-center gap-3 mt-2 text-xs text-zinc-500">
+                  <div className="flex items-center gap-3 mt-2 text-xs text-slate">
                     <span>{conv.messageCount} messages</span>
-                    {conv.leadCount > 0 && <span className="text-green-400">{conv.leadCount} lead(s)</span>}
+                    {conv.leadCount > 0 && <span className="text-ink">{conv.leadCount} lead(s)</span>}
                   </div>
                 </button>
               ))}
+              {hasMore && (
+                <div className="p-4">
+                  <button
+                    type="button"
+                    onClick={() => loadConversations(true, listPage + 1, true)}
+                    disabled={loadingMore}
+                    className="btn-secondary w-full"
+                  >
+                    {loadingMore ? 'Loading…' : 'Load more'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Conversation Detail - Desktop: Right Panel, Mobile: Full width when shown */}
-            <div className={`${showDetail ? 'block' : 'hidden md:block'} flex-1 flex flex-col`}>
+            <div
+              role={selectedConversation ? 'dialog' : undefined}
+              aria-modal={selectedConversation ? false : undefined}
+              aria-labelledby={selectedConversation ? 'conversation-detail-title' : undefined}
+              className={`${showDetail ? 'block' : 'hidden md:block'} flex-1 flex flex-col`}
+            >
               {!selectedConversation ? (
-                <div className="flex-1 flex items-center justify-center text-zinc-500">
+                <div className="flex-1 flex items-center justify-center text-slate">
                   <div className="text-center">
                     <MessageSquare size={48} className="mx-auto mb-4 opacity-20" />
                     <div>Select a conversation to view details</div>
@@ -302,37 +430,51 @@ export default function Conversations() {
               ) : (
                 <>
                   {/* Header */}
-                  <div className="p-4 border-b border-white/[0.06]">
+                  <div className="p-4 border-b border-frost">
                     <div className="flex items-start justify-between mb-3">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <button onClick={() => setShowDetail(false)} className="md:hidden mr-2">
+                          <button
+                            type="button"
+                            onClick={dismissPanel}
+                            className="md:hidden mr-2"
+                            aria-label="Back to conversation list"
+                          >
                             <ArrowLeft size={20} />
                           </button>
-                          <h3 className="text-lg font-semibold">{selectedConversation.customerName || 'Anonymous'}</h3>
+                          <h3 id="conversation-detail-title" className="text-lg font-semibold">
+                            {selectedConversation.customerName || 'Anonymous'}
+                          </h3>
                         </div>
                         {selectedConversation.customerEmail && (
-                          <div className="text-sm text-zinc-400">{selectedConversation.customerEmail}</div>
+                          <div className="text-sm text-slate">{selectedConversation.customerEmail}</div>
                         )}
                         {selectedConversation.customerPhone && (
-                          <div className="text-sm text-zinc-400">{selectedConversation.customerPhone}</div>
+                          <div className="text-sm text-slate">{selectedConversation.customerPhone}</div>
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <ConversationStatusBadge status={selectedConversation.status} />
+                        <StatusBadge status={selectedConversation.status} />
                         <ChannelBadge channel={selectedConversation.channel} />
                       </div>
                     </div>
-                    <div className="text-sm text-zinc-500 mb-3">{selectedConversation.businessName}</div>
+                    <div className="text-sm text-slate mb-3">{selectedConversation.businessName}</div>
                     {/* Status Actions */}
                     <div className="flex gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={dismissPanel}
+                        className="btn-secondary px-3 py-1 text-sm"
+                      >
+                        Dismiss
+                      </button>
                       {selectedConversation.status === 'ACTIVE' && (
                         <>
                           <button onClick={() => updateStatus('PAUSED' as ConversationStatus)} className="btn-secondary px-3 py-1 text-sm" disabled={updatingStatus}>
                             Pause
                           </button>
                           <button onClick={() => updateStatus('CLOSED' as ConversationStatus)} className="btn-secondary px-3 py-1 text-sm" disabled={updatingStatus}>
-                            Close
+                            Mark closed
                           </button>
                         </>
                       )}
@@ -342,7 +484,7 @@ export default function Conversations() {
                             Reopen
                           </button>
                           <button onClick={() => updateStatus('CLOSED' as ConversationStatus)} className="btn-secondary px-3 py-1 text-sm" disabled={updatingStatus}>
-                            Close
+                            Mark closed
                           </button>
                         </>
                       )}
@@ -367,9 +509,9 @@ export default function Conversations() {
                   {/* Messages */}
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     {loadingMessages ? (
-                      <div className="text-center text-zinc-500">Loading messages...</div>
+                      <div className="text-center text-slate">Loading messages...</div>
                     ) : messages.length === 0 ? (
-                      <div className="text-center text-zinc-500">No messages yet</div>
+                      <div className="text-center text-slate">No messages yet</div>
                     ) : (
                       messages.map((msg) => (
                         <div
@@ -379,10 +521,10 @@ export default function Conversations() {
                           <div
                             className={`max-w-[80%] rounded-lg p-3 ${
                               msg.role === 'USER'
-                                ? 'bg-blue-600/20 text-blue-100'
+                                ? 'bg-blue-600/20 text-ink'
                                 : msg.role === 'SYSTEM'
-                                ? 'bg-zinc-800/50 text-zinc-400 text-sm'
-                                : 'bg-purple-600/20 text-purple-100'
+                                ? 'bg-mist/50 text-slate text-sm'
+                                : 'bg-mist text-ink'
                             }`}
                           >
                             <div className="text-xs opacity-70 mb-1">{msg.role}</div>
@@ -398,13 +540,13 @@ export default function Conversations() {
 
                   {/* Footer Info */}
                   {selectedConversation.leadCaptureStatus && (
-                    <div className="p-4 border-t border-white/[0.06] bg-white/[0.01]">
+                    <div className="p-4 border-t border-frost bg-mist">
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="text-zinc-500">Lead Capture:</span>
+                        <span className="text-slate">Lead Capture:</span>
                         <StatusBadge status={selectedConversation.leadCaptureStatus} />
                       </div>
                       {selectedConversation.relatedLeads.length > 0 && (
-                        <div className="mt-2 text-sm text-zinc-500">
+                        <div className="mt-2 text-sm text-slate">
                           {selectedConversation.relatedLeads.length} related lead(s)
                         </div>
                       )}

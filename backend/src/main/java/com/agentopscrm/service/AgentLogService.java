@@ -203,9 +203,17 @@ public class AgentLogService {
         response.setStatus(log.getStatus());
         response.setDurationMs(log.getDurationMs());
         response.setCreatedAt(log.getCreatedAt());
-        response.setInputJson(log.getInputJson());
-        response.setOutputJson(log.getOutputJson());
-        response.setErrorMessage(log.getErrorMessage());
+        response.setInputJson(com.agentopscrm.util.SafeErrorMessages.sanitizeJson(log.getInputJson()));
+        response.setOutputJson(com.agentopscrm.util.SafeErrorMessages.sanitizeJson(log.getOutputJson()));
+        String correlationId = com.agentopscrm.util.SafeErrorMessages.correlationIdFrom(log.getId());
+        response.setCorrelationId(correlationId);
+        if (log.getErrorMessage() != null && !log.getErrorMessage().isBlank()) {
+            String category = com.agentopscrm.util.SafeErrorMessages.categoryFromMessage(log.getErrorMessage());
+            response.setErrorMessage(com.agentopscrm.util.SafeErrorMessages.sanitize(log.getErrorMessage())
+                    + " Reference " + correlationId + ".");
+            response.setErrorCategory(category);
+            response.setRecommendedAction(com.agentopscrm.util.SafeErrorMessages.recommendedAction(category));
+        }
 
         // Map related entities (safely handle nulls)
         if (log.getBusiness() != null) {

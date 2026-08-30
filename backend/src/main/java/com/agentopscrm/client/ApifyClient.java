@@ -68,6 +68,31 @@ public class ApifyClient {
     }
 
     /**
+     * Lightweight authenticated connectivity check against Apify (GET /v2/users/me).
+     * Does not start actor runs. TLS and credential failures surface as {@link ApifyException}.
+     */
+    public void ping() throws ApifyException {
+        ensureConfigured();
+        String url = UriComponentsBuilder.fromHttpUrl(APIFY_API_BASE_URL)
+            .path("/users/me")
+            .queryParam("token", apiToken)
+            .build()
+            .toUriString();
+        try {
+            restTemplate.exchange(url, HttpMethod.GET, HttpEntity.EMPTY, Map.class);
+        } catch (HttpClientErrorException e) {
+            logger.error("Apify ping client error: {}", e.getStatusCode());
+            throw toApifyException(e, "testing connection");
+        } catch (HttpServerErrorException e) {
+            logger.error("Apify ping server error: {}", e.getStatusCode());
+            throw new ApifyException("Apify API server error: " + e.getStatusCode(), e);
+        } catch (Exception e) {
+            logger.error("Apify ping failed", e);
+            throw new ApifyException("Unexpected error testing Apify connection", e);
+        }
+    }
+
+    /**
      * @return the configured default actor id (may be null/blank).
      */
     public String getDefaultActorId() {

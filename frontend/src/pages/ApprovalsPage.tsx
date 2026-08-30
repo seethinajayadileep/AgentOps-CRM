@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle } from 'lucide-react';
 import { Approval, ApprovalStatus, ApprovalType } from '../types/approval';
 import { getAllApprovals } from '../api/approvalsApi';
@@ -14,12 +14,14 @@ const ApprovalsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ApprovalStatus | 'ALL'>('ALL');
   const [typeFilter, setTypeFilter] = useState<ApprovalType | 'ALL'>('ALL');
+  const fetchGeneration = useRef(0);
 
   const fetchApprovals = async () => {
+    const generation = ++fetchGeneration.current;
     setLoading(true);
     setError(null);
     try {
-      const params: any = {};
+      const params: { status?: ApprovalStatus; type?: ApprovalType } = {};
       if (statusFilter !== 'ALL') {
         params.status = statusFilter;
       }
@@ -27,12 +29,16 @@ const ApprovalsPage: React.FC = () => {
         params.type = typeFilter;
       }
       const data = await getAllApprovals(params);
+      if (generation !== fetchGeneration.current) return;
       setApprovals(data);
     } catch (err) {
+      if (generation !== fetchGeneration.current) return;
       console.error('Failed to fetch approvals:', err);
       setError('Failed to load approvals. Please try again.');
     } finally {
-      setLoading(false);
+      if (generation === fetchGeneration.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -64,8 +70,11 @@ const ApprovalsPage: React.FC = () => {
       <Card className="mb-6 p-4">
         <div className="flex flex-wrap gap-4">
           <div>
-            <label className="label-dark">Status</label>
+            <label htmlFor="approval-status-filter" className="label-dark">
+              Status
+            </label>
             <select
+              id="approval-status-filter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as ApprovalStatus | 'ALL')}
               className="input-dark w-48"
@@ -78,16 +87,19 @@ const ApprovalsPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="label-dark">Type</label>
+            <label htmlFor="approval-type-filter" className="label-dark">
+              Type
+            </label>
             <select
+              id="approval-type-filter"
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as ApprovalType | 'ALL')}
               className="input-dark w-48"
             >
               <option value="ALL">All Types</option>
               <option value={ApprovalType.FOLLOW_UP_MESSAGE}>Follow-up Message</option>
-              <option value={ApprovalType.OUTBOUND_CALL}>Outbound Call</option>
-              <option value={ApprovalType.OUTREACH_MESSAGE}>Outreach Message</option>
+              <option value={ApprovalType.VOICE_CALL}>Outbound Call</option>
+              <option value={ApprovalType.REPORT_GENERATION}>Outreach Message</option>
             </select>
           </div>
         </div>
@@ -96,7 +108,7 @@ const ApprovalsPage: React.FC = () => {
       {loading && <LoadingState label="Loading approvals…" />}
 
       {error && !loading && (
-        <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div>
+        <div className="mb-6 rounded-sm border border-frost bg-mist p-4 text-ink">{error}</div>
       )}
 
       {!loading && !error && approvals.length === 0 && (
@@ -118,7 +130,7 @@ const ApprovalsPage: React.FC = () => {
               <ApprovalCard key={approval.approvalId} approval={approval} onUpdate={handleUpdate} />
             ))}
           </div>
-          <div className="mt-6 text-center text-sm text-zinc-500">
+          <div className="mt-6 text-center text-sm text-slate">
             Showing {approvals.length} approval{approvals.length !== 1 ? 's' : ''}
           </div>
         </>

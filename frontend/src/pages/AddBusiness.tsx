@@ -7,11 +7,11 @@ import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
 
 /**
- * Add/Edit business form page.
- *
- * @version 0.3.0
- * Feature: F-002
- */
+  * Add/Edit business form page.
+  *
+  * @version 0.3.0
+  * Feature: F-002
+  */
 export default function AddBusiness() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
@@ -166,7 +166,7 @@ export default function AddBusiness() {
   };
 
   const inputClass = (field: string) =>
-    `input-dark ${errors[field] ? 'border-red-500/60 focus:ring-red-500/50' : ''}`;
+    `input-dark ${errors[field] ? 'border-ink focus:ring-silver' : ''}`;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -174,7 +174,7 @@ export default function AddBusiness() {
         title={pageTitle}
         subtitle={isEditMode ? 'Update business information' : 'Onboard a business for AI-powered customer interactions'}
         back={
-          <Link to="/businesses" className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-100">
+          <Link to="/businesses" className="inline-flex items-center gap-2 text-sm text-slate hover:text-ink">
             <ArrowLeft size={18} />
             <span>Back to Businesses</span>
           </Link>
@@ -182,13 +182,13 @@ export default function AddBusiness() {
       />
 
       {success && (
-        <div className="mb-6 rounded-xl border border-[#22C55E]/30 bg-[#22C55E]/10 p-4 text-[#4ade80]">
+        <div className="mb-6 rounded-sm border border-frost bg-mist p-4 text-ink">
           {isEditMode ? 'Business updated successfully' : 'Business created successfully'}! Redirecting…
         </div>
       )}
 
       {error && (
-        <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div>
+        <div className="mb-6 rounded-sm border border-frost bg-mist p-4 text-ink">{error}</div>
       )}
 
       {!success && (
@@ -196,7 +196,7 @@ export default function AddBusiness() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="name" className="label-dark">
-                Business Name <span className="text-red-400">*</span>
+                Business Name <span className="text-ink">*</span>
               </label>
               <input
                 id="name"
@@ -206,12 +206,12 @@ export default function AddBusiness() {
                 placeholder="e.g., Acme Corporation"
                 className={inputClass('name')}
               />
-              {errors.name && <p className="mt-1 text-sm text-red-400">{errors.name}</p>}
+              {errors.name && <p className="mt-1 text-sm text-ink">{errors.name}</p>}
             </div>
 
             <div>
               <label htmlFor="websiteUrl" className="label-dark">
-                Website URL <span className="text-red-400">*</span>
+                Website URL <span className="text-ink">*</span>
               </label>
               <input
                 id="websiteUrl"
@@ -221,7 +221,7 @@ export default function AddBusiness() {
                 placeholder="https://example.com"
                 className={inputClass('websiteUrl')}
               />
-              {errors.websiteUrl && <p className="mt-1 text-sm text-red-400">{errors.websiteUrl}</p>}
+              {errors.websiteUrl && <p className="mt-1 text-sm text-ink">{errors.websiteUrl}</p>}
             </div>
 
             <div>
@@ -236,7 +236,7 @@ export default function AddBusiness() {
                 placeholder="e.g., Technology, Healthcare, Finance"
                 className={inputClass('industry')}
               />
-              {errors.industry && <p className="mt-1 text-sm text-red-400">{errors.industry}</p>}
+              {errors.industry && <p className="mt-1 text-sm text-ink">{errors.industry}</p>}
             </div>
 
             <div>
@@ -251,7 +251,7 @@ export default function AddBusiness() {
                 rows={3}
                 className={`${inputClass('description')} resize-none`}
               />
-              {errors.description && <p className="mt-1 text-sm text-red-400">{errors.description}</p>}
+              {errors.description && <p className="mt-1 text-sm text-ink">{errors.description}</p>}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -267,7 +267,7 @@ export default function AddBusiness() {
                   placeholder="contact@example.com"
                   className={inputClass('contactEmail')}
                 />
-                {errors.contactEmail && <p className="mt-1 text-sm text-red-400">{errors.contactEmail}</p>}
+                {errors.contactEmail && <p className="mt-1 text-sm text-ink">{errors.contactEmail}</p>}
               </div>
 
               <div>
@@ -282,11 +282,11 @@ export default function AddBusiness() {
                   placeholder="+1 (555) 123-4567"
                   className={inputClass('contactPhone')}
                 />
-                {errors.contactPhone && <p className="mt-1 text-sm text-red-400">{errors.contactPhone}</p>}
+                {errors.contactPhone && <p className="mt-1 text-sm text-ink">{errors.contactPhone}</p>}
               </div>
             </div>
 
-            <div className="flex items-center gap-3 border-t border-white/[0.06] pt-5">
+            <div className="flex items-center gap-3 border-t border-frost pt-5">
               <button type="button" onClick={() => navigate('/businesses')} className="btn-secondary">
                 Cancel
               </button>

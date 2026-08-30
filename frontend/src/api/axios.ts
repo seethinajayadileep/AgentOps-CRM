@@ -4,17 +4,22 @@ import axios from 'axios';
  * Centralized Axios client configuration.
  * All API modules must use this client to ensure consistent baseURL handling.
  * 
- * Production deployment: VITE_API_BASE_URL must be set in Vercel.
- * Example: https://upbeat-blessing-production-0f39.up.railway.app/api
+ * Production (Vercel): set VITE_API_BASE_URL at build time to the Railway
+ * origin plus /api, e.g. https://your-service.up.railway.app/api
  * 
  * @version 0.2.0
  */
 
-const rawBaseUrl =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+// Local Vite must use the /api proxy. frontend/.env often points at a remote
+// API, which leaves recordings on a cross-origin URL (readyState 0).
+const rawBaseUrl = import.meta.env.DEV
+  ? '/api'
+  : import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 // Remove trailing slashes to avoid double-slashing
 const baseURL = rawBaseUrl.replace(/\/+$/, '');
+
+export const API_BASE_URL = baseURL;
 
 export const apiClient = axios.create({
   baseURL,
@@ -48,7 +53,7 @@ apiClient.interceptors.response.use(
     // Extract error message from backend response
     let errorMessage = 'Network error occurred';
 
-    if (error.response?.data) {
+    if (error.response?.data && !(error.response.data instanceof Blob)) {
       const data = error.response.data;
 
       // Handle validation errors with field-specific errors

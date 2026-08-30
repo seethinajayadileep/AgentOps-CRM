@@ -1,38 +1,57 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Search, Trash2, Edit, Globe, FileText, Building2 } from 'lucide-react';
-import { businessApi } from '../api/business';
+import { businessApi, type BusinessDependencies } from '../api/business';
 import type { ApiResponse, Business, PaginatedResponse } from '../types/index';
 import PageHeader from '../components/ui/PageHeader';
 import EmptyState from '../components/ui/EmptyState';
 import LoadingState from '../components/ui/LoadingState';
 import StatusBadge from '../components/ui/StatusBadge';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import ToastContainer from '../components/ui/ToastContainer';
+import { useToast } from '../hooks/useToast';
 
 /**
- * Businesses list page with CRUD operations.
- *
- * @version 0.3.0
- * Feature: F-002
- */
+  * Businesses list page with CRUD operations.
+  *
+  * @version 0.3.0
+  * Feature: F-002
+  */
 export default function Businesses() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { toasts, showToast, closeToast } = useToast();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [typedSearch, setTypedSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [page, setPage] = useState(0);
+  const [searchEpoch, setSearchEpoch] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  const [dependencies, setDependencies] = useState<BusinessDependencies | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const fetchGeneration = useRef(0);
 
-  const fetchBusinesses = async () => {
+  const fetchBusinesses = async (currentPage: number, term: string) => {
+    const generation = ++fetchGeneration.current;
     setLoading(true);
     setError(null);
 
     try {
-      const response: ApiResponse<PaginatedResponse<Business>> = await businessApi.getAllBusinesses({
-        page,
-        size: 20,
-      });
+      const response: ApiResponse<PaginatedResponse<Business>> = term
+        ? await businessApi.searchBusinesses(term, { page: currentPage, size: 20 })
+        : await businessApi.getAllBusinesses({
+            page: currentPage,
+            size: 20,
+          });
+
+      if (generation !== fetchGeneration.current) {
+        return;
+      }
 
       if (response.success && response.data) {
         setBusinesses(response.data.items);
@@ -42,56 +61,71 @@ export default function Businesses() {
         setError(response.error || 'Failed to load businesses');
       }
     } catch (err) {
-      setError('Network error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearch = async () => {
-    if (!searchTerm.trim()) {
-      fetchBusinesses();
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response: ApiResponse<PaginatedResponse<Business>> = await businessApi.searchBusinesses(
-        searchTerm,
-        { page: 0, size: 20 }
-      );
-
-      if (response.success && response.data) {
-        setBusinesses(response.data.items);
-        setTotalPages(response.data.pagination.totalPages);
-        setTotalCount(response.data.pagination.total);
-        setPage(0);
-      } else {
-        setError(response.error || 'Search failed');
+      if (generation !== fetchGeneration.current) {
+        return;
       }
-    } catch (err) {
       setError('Network error occurred');
     } finally {
-      setLoading(false);
+      if (generation === fetchGeneration.current) {
+        setLoading(false);
+      }
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this business? This will also delete all related data.')) {
-      return;
-    }
+  const applySearch = (raw: string) => {
+    const term = raw.trim().slice(0, 200);
+    setTypedSearch(term);
+    setAppliedSearch(term);
+    setPage(0);
+    setSearchEpoch((n) => n + 1);
+  };
 
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const live = String(new FormData(event.currentTarget).get('business-search') ?? '');
+    applySearch(live);
+  };
+
+  const clearSearch = () => {
+    applySearch('');
+  };
+
+  useEffect(() => {
+    const toast = (location.state as { toast?: string } | null)?.toast;
+    if (toast) {
+      showToast('success', toast);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate, showToast]);
+
+  const requestDelete = async (id: string, name: string) => {
+    setPendingDelete({ id, name });
     try {
-      const response: ApiResponse<void> = await businessApi.deleteBusiness(id);
+      const response = await businessApi.getDependencies(id);
+      setDependencies(response.success && response.data ? response.data : null);
+    } catch {
+      setDependencies(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleteBusy(true);
+    try {
+      const response: ApiResponse<void> = await businessApi.deleteBusiness(pendingDelete.id);
       if (response.success) {
-        fetchBusinesses();
+        showToast('success', 'Business deleted successfully');
+        setPendingDelete(null);
+        void fetchBusinesses(page, appliedSearch);
       } else {
         setError(response.error || 'Failed to delete business');
+        setPendingDelete(null);
       }
     } catch (err) {
-      setError('Network error occurred');
+      setError('The business could not be deleted. No records were removed.');
+      setPendingDelete(null);
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -100,11 +134,33 @@ export default function Businesses() {
   };
 
   useEffect(() => {
-    fetchBusinesses();
-  }, [page]);
+    void fetchBusinesses(page, appliedSearch);
+  }, [page, appliedSearch, searchEpoch]);
 
   return (
     <div>
+      <ToastContainer toasts={toasts} onClose={closeToast} />
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Delete this business?"
+          confirmLabel="Delete business"
+          danger
+          busy={deleteBusy}
+          onConfirm={handleDelete}
+          onClose={() => setPendingDelete(null)}
+        >
+          <p>
+            This permanently deletes <strong>{pendingDelete.name}</strong> and related records.
+          </p>
+          <ul className="mt-3 list-disc space-y-1 pl-5">
+            <li>{dependencies?.leads ?? 0} leads</li>
+            <li>{dependencies?.conversations ?? 0} conversations</li>
+            <li>{dependencies?.documents ?? 0} documents</li>
+            <li>{dependencies?.approvals ?? 0} approvals</li>
+            <li>{dependencies?.agentLogs ?? 0} agent logs</li>
+          </ul>
+        </ConfirmDialog>
+      )}
       <PageHeader
         title="Businesses"
         subtitle={`${totalCount} business${totalCount !== 1 ? 'es' : ''}`}
@@ -117,27 +173,36 @@ export default function Businesses() {
       />
 
       {/* Search Bar */}
-      <div className="mb-6 flex gap-3">
+      <form className="mb-6 flex gap-3" onSubmit={handleSearchSubmit} autoComplete="off">
         <div className="relative flex-1">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate" />
           <input
+            ref={searchInputRef}
             type="text"
+            name="business-search"
             placeholder="Search businesses…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            value={typedSearch}
+            maxLength={200}
+            aria-label="Search businesses"
+            autoComplete="off"
+            onChange={(e) => setTypedSearch(e.target.value.slice(0, 200))}
             className="input-dark pl-10"
           />
         </div>
-        <button onClick={handleSearch} className="btn-secondary">
+        <button type="submit" className="btn-secondary">
           Search
         </button>
-      </div>
+        {(typedSearch || appliedSearch) && (
+          <button type="button" onClick={clearSearch} className="btn-secondary">
+            Clear
+          </button>
+        )}
+      </form>
 
       {loading && <LoadingState label="Loading businesses…" />}
 
       {error && (
-        <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+        <div className="mb-6 rounded-sm border border-frost bg-mist p-4 text-ink">
           {error}
         </div>
       )}
@@ -146,7 +211,7 @@ export default function Businesses() {
         <EmptyState
           icon={<Building2 size={26} />}
           title="No businesses found"
-          description={searchTerm ? 'Try a different search term' : 'Add your first business to get started'}
+          description={appliedSearch ? 'Try a different search term' : 'Add your first business to get started'}
         />
       )}
 
@@ -154,12 +219,12 @@ export default function Businesses() {
         <div className="table-card">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="border-b border-white/[0.06] bg-white/[0.02]">
+              <thead className="border-b border-frost bg-mist">
                 <tr>
                   {['Name', 'Website', 'Industry', 'Contact', 'Crawl Status', 'Actions'].map((h) => (
                     <th
                       key={h}
-                      className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-400"
+                      className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate"
                     >
                       {h}
                     </th>
@@ -170,12 +235,12 @@ export default function Businesses() {
                 {businesses.map((business) => (
                   <tr
                     key={business.id}
-                    className="border-b border-white/[0.04] transition-colors duration-200 hover:bg-white/[0.03]"
+                    className="border-b border-frost transition-colors duration-200 hover:bg-mist"
                   >
                     <td className="px-6 py-4">
                       <Link
                         to={`/businesses/${business.id}`}
-                        className="font-medium text-primary-300 hover:text-primary-200"
+                        className="font-medium text-ink hover:text-ink"
                       >
                         {business.name}
                       </Link>
@@ -185,18 +250,18 @@ export default function Businesses() {
                         href={business.websiteUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-blue-300 hover:underline"
+                        className="flex items-center gap-1 text-ink hover:underline"
                       >
                         <Globe size={14} />
                         <span className="max-w-xs truncate">{business.websiteUrl}</span>
                       </a>
                     </td>
-                    <td className="px-6 py-4 text-zinc-300">{business.industry || '-'}</td>
+                    <td className="px-6 py-4 text-ink">{business.industry || '-'}</td>
                     <td className="px-6 py-4 text-sm">
-                      {business.contactEmail && <div className="text-zinc-300">{business.contactEmail}</div>}
-                      {business.contactPhone && <div className="text-zinc-500">{business.contactPhone}</div>}
+                      {business.contactEmail && <div className="text-ink">{business.contactEmail}</div>}
+                      {business.contactPhone && <div className="text-slate">{business.contactPhone}</div>}
                       {!business.contactEmail && !business.contactPhone && (
-                        <span className="text-zinc-600">-</span>
+                        <span className="text-silver">-</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
@@ -206,21 +271,21 @@ export default function Businesses() {
                       <div className="flex items-center gap-3">
                         <Link
                           to={`/businesses/${business.id}`}
-                          className="text-zinc-500 transition-colors hover:text-primary-300"
+                          className="text-slate transition-colors hover:text-ink"
                           title="View details"
                         >
                           <FileText size={18} />
                         </Link>
                         <button
                           onClick={() => navigate(`/businesses/${business.id}/edit`)}
-                          className="text-zinc-500 transition-colors hover:text-primary-300"
+                          className="text-slate transition-colors hover:text-ink"
                           title="Edit"
                         >
                           <Edit size={18} />
                         </button>
                         <button
-                          onClick={() => handleDelete(business.id)}
-                          className="text-zinc-500 transition-colors hover:text-red-400"
+                          onClick={() => requestDelete(business.id, business.name)}
+                          className="text-slate transition-colors hover:text-ink"
                           title="Delete"
                         >
                           <Trash2 size={18} />
@@ -234,7 +299,7 @@ export default function Businesses() {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-white/[0.06] px-6 py-4">
+            <div className="flex items-center justify-between border-t border-frost px-6 py-4">
               <button
                 onClick={() => handlePageChange(Math.max(0, page - 1))}
                 disabled={page === 0}
@@ -242,7 +307,7 @@ export default function Businesses() {
               >
                 Previous
               </button>
-              <span className="text-sm text-zinc-400">
+              <span className="text-sm text-slate">
                 Page {page + 1} of {totalPages}
               </span>
               <button

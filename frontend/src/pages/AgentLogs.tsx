@@ -10,11 +10,11 @@ import StatusBadge from '../components/ui/StatusBadge';
 import ExecutionDetailsModal from '../components/agent-logs/ExecutionDetailsModal';
 
 /**
- * Agent logs audit page - complete observability for AI agent executions.
- *
- * @version 0.3.0
- * Feature: F-012 - Agent Logs Observability
- */
+  * Agent logs audit page - complete observability for AI agent executions.
+  *
+  * @version 0.3.0
+  * Feature: F-012 - Agent Logs Observability
+  */
 export default function AgentLogs() {
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const [summary, setSummary] = useState<AgentLogSummary | null>(null);
@@ -164,26 +164,26 @@ export default function AgentLogs() {
       {summary && (
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Executions Today</p>
-            <p className="mt-2 text-2xl font-bold text-white">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate">Executions Today</p>
+            <p className="mt-2 text-2xl font-bold text-ink">
               {summaryLoading ? '...' : summary.executionsToday.toLocaleString()}
             </p>
           </Card>
           <Card className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Success Rate</p>
-            <p className="mt-2 text-2xl font-bold text-green-400">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate">Success Rate</p>
+            <p className="mt-2 text-2xl font-bold text-ink">
               {summaryLoading ? '...' : `${summary.successRate.toFixed(1)}%`}
             </p>
           </Card>
           <Card className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Errors</p>
-            <p className="mt-2 text-2xl font-bold text-red-400">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate">Errors</p>
+            <p className="mt-2 text-2xl font-bold text-ink">
               {summaryLoading ? '...' : summary.errorCount.toLocaleString()}
             </p>
           </Card>
           <Card className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Average Duration</p>
-            <p className="mt-2 text-2xl font-bold text-cyan-400">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate">Average Duration</p>
+            <p className="mt-2 font-serif text-2xl text-ink">
               {summaryLoading ? '...' : formatDuration(summary.averageDurationMs)}
             </p>
           </Card>
@@ -195,8 +195,11 @@ export default function AgentLogs() {
         <div className="space-y-4">
           {/* Search */}
           <div>
-            <label className="label-dark">Search</label>
+            <label htmlFor="agent-log-search" className="label-dark">
+              Search
+            </label>
             <input
+              id="agent-log-search"
               type="text"
               value={search}
               onChange={(e) => {
@@ -211,8 +214,11 @@ export default function AgentLogs() {
           {/* Filters Row */}
           <div className="flex flex-wrap gap-4">
             <div>
-              <label className="label-dark">Agent</label>
+              <label htmlFor="agent-log-agent-filter" className="label-dark">
+                Agent
+              </label>
               <select
+                id="agent-log-agent-filter"
                 value={agentFilter}
                 onChange={(e) => {
                   setAgentFilter(e.target.value);
@@ -234,8 +240,11 @@ export default function AgentLogs() {
             </div>
 
             <div>
-              <label className="label-dark">Action</label>
+              <label htmlFor="agent-log-action-filter" className="label-dark">
+                Action
+              </label>
               <select
+                id="agent-log-action-filter"
                 value={actionFilter}
                 onChange={(e) => {
                   setActionFilter(e.target.value);
@@ -256,8 +265,11 @@ export default function AgentLogs() {
             </div>
 
             <div>
-              <label className="label-dark">Status</label>
+              <label htmlFor="agent-log-status-filter" className="label-dark">
+                Status
+              </label>
               <select
+                id="agent-log-status-filter"
                 value={statusFilter}
                 onChange={(e) => {
                   setStatusFilter(e.target.value as AgentActionStatus | 'ALL');
@@ -288,9 +300,9 @@ export default function AgentLogs() {
                     }
                     setPage(0);
                   }}
-                  className="rounded border-white/20 bg-black/30 text-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-0"
+                  className="rounded border-white/20 bg-snow text-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-0"
                 />
-                <span className="text-sm text-zinc-300">Errors only</span>
+                <span className="text-sm text-ink">Errors only</span>
               </label>
             </div>
           </div>
@@ -299,7 +311,7 @@ export default function AgentLogs() {
           {hasActiveFilters && (
             <button
               onClick={handleClearFilters}
-              className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors"
+              className="flex items-center gap-2 text-sm text-slate hover:text-ink transition-colors"
             >
               <X size={14} />
               Clear filters
@@ -310,11 +322,11 @@ export default function AgentLogs() {
 
       {/* Error Display */}
       {error && (
-        <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 flex items-start gap-3">
-          <AlertCircle size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
+        <div className="mb-6 rounded-sm border border-frost bg-mist p-4 flex items-start gap-3">
+          <AlertCircle size={20} className="text-ink flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-red-300">{error}</p>
-            <button onClick={loadLogs} className="mt-2 text-sm text-red-400 hover:text-red-300 underline">
+            <p className="text-ink">{error}</p>
+            <button onClick={loadLogs} className="mt-2 text-sm text-ink hover:text-ink underline">
               Retry
             </button>
           </div>
@@ -337,12 +349,12 @@ export default function AgentLogs() {
           <div className="table-card">
             <div className="overflow-x-auto">
               <table className="min-w-full">
-                <thead className="border-b border-white/[0.06] bg-white/[0.02]">
+                <thead className="border-b border-frost bg-mist">
                   <tr>
                     {['Time', 'Agent', 'Action', 'Related Item', 'Status', 'Duration', ''].map((h, i) => (
                       <th
                         key={h || `col-${i}`}
-                        className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-400"
+                        className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate"
                       >
                         {h}
                       </th>
@@ -355,36 +367,36 @@ export default function AgentLogs() {
                     return (
                       <tr
                         key={log.id}
-                        className="border-b border-white/[0.04] transition-colors duration-200 hover:bg-white/[0.03]"
+                        className="border-b border-frost transition-colors duration-200 hover:bg-mist"
                       >
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
                           {formatTimeAgo(log.createdAt)}
                         </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-zinc-200">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-ink">
                           {log.agentName}
                         </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-300">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-ink">
                           {formatActionLabel(log.action)}
                         </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
                           {relatedItem ? (
                             <span title={relatedItem.name}>
-                              <span className="text-zinc-500">{relatedItem.type}:</span> {relatedItem.name}
+                              <span className="text-slate">{relatedItem.type}:</span> {relatedItem.name}
                             </span>
                           ) : (
-                            <span className="text-zinc-600">-</span>
+                            <span className="text-silver">-</span>
                           )}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4">
                           <StatusBadge status={log.status} />
                         </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-400">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
                           {formatDuration(log.durationMs)}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-sm">
                           <button
                             onClick={() => setSelectedLog(log)}
-                            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/10"
+                            className="rounded-lg border border-frost px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/10"
                           >
                             View
                           </button>
@@ -400,7 +412,7 @@ export default function AgentLogs() {
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="mt-6 flex items-center justify-between">
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-slate">
                 Showing {page * pageSize + 1}-{Math.min((page + 1) * pageSize, totalLogs)} of {totalLogs} logs
               </p>
               <div className="flex gap-2">

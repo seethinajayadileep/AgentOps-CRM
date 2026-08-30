@@ -7,11 +7,11 @@ interface ChannelBadgeProps {
 }
 
 /**
- * Badge component for conversation channel display.
- *
- * @version 0.3.0
- * Feature: F-009 - Conversations Admin Page
- */
+  * Badge component for conversation channel display.
+  *
+  * @version 0.3.0
+  * Feature: F-009 - Conversations Admin Page
+  */
 export default function ChannelBadge({ channel }: ChannelBadgeProps) {
   const channelConfig: Record<Channel, { label: string; color: 'purple' | 'blue' | 'cyan' | 'green'; icon: any }> = {
     [Channel.WEB_WIDGET]: { label: 'Web Widget', color: 'purple', icon: MessageCircle },

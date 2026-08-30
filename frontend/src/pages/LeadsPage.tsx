@@ -37,7 +37,7 @@ export default function LeadsPage() {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">Error: {error}</div>
+      <div className="rounded-sm border border-frost bg-mist p-4 text-ink">Error: {error}</div>
     );
   }
 
@@ -55,12 +55,12 @@ export default function LeadsPage() {
         <div className="table-card">
           <div className="overflow-x-auto">
             <table className="min-w-full">
-              <thead className="border-b border-white/[0.06] bg-white/[0.02]">
+              <thead className="border-b border-frost bg-mist">
                 <tr>
                   {['Name', 'Requirement', 'Score', 'Status', 'Created', 'Actions'].map((h) => (
                     <th
                       key={h}
-                      className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-400"
+                      className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate"
                     >
                       {h}
                     </th>
@@ -71,15 +71,15 @@ export default function LeadsPage() {
                 {leads.map((lead) => (
                   <tr
                     key={lead.id}
-                    className="border-b border-white/[0.04] transition-colors duration-200 hover:bg-white/[0.03]"
+                    className="border-b border-frost transition-colors duration-200 hover:bg-mist"
                   >
                     <td className="whitespace-nowrap px-6 py-4">
-                      <div className="text-sm font-medium text-zinc-100">{lead.name}</div>
-                      {lead.email && <div className="text-sm text-zinc-500">{lead.email}</div>}
-                      {lead.phone && <div className="text-sm text-zinc-500">{lead.phone}</div>}
+                      <div className="text-sm font-medium text-ink">{lead.name}</div>
+                      {lead.email && <div className="text-sm text-slate">{lead.email}</div>}
+                      {lead.phone && <div className="text-sm text-slate">{lead.phone}</div>}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="max-w-xs truncate text-sm text-zinc-300">{lead.requirementText || '-'}</div>
+                      <div className="max-w-xs truncate text-sm text-ink">{lead.requirementText || '-'}</div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <LeadScoreBadge score={lead.leadScore} />
@@ -87,11 +87,11 @@ export default function LeadsPage() {
                     <td className="whitespace-nowrap px-6 py-4">
                       <LeadStatusBadge status={lead.status} />
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-500">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
                       {new Date(lead.createdAt).toLocaleDateString()}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm">
-                      <Link to={`/leads/${lead.id}`} className="font-medium text-primary-300 hover:text-primary-200">
+                      <Link to={`/leads/${lead.id}`} className="font-medium text-ink hover:text-ink">
                         View
                       </Link>
                     </td>

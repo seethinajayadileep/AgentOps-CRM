@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,4 +36,6 @@ public interface BusinessRepository extends JpaRepository<Business, UUID> {
     Page<Business> search(@Param("search") String search, Pageable pageable);
 
     boolean existsByWebsiteUrl(String websiteUrl);
+
+    long countByCreatedAtBefore(LocalDateTime cutoff);
 }

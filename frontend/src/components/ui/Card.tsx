@@ -8,7 +8,7 @@ interface CardProps {
 }
 
 /**
- * Glassmorphism surface card (dark-mode-first).
+ * Paper-white surface with a warm hairline border and a restrained shadow.
  */
 export default function Card({ children, className = '', hover = false, onClick }: CardProps) {
   return (

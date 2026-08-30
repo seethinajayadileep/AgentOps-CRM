@@ -30,6 +30,9 @@ export interface AgentLog {
   inputJson?: string;
   outputJson?: string;
   errorMessage?: string;
+  errorCategory?: string;
+  correlationId?: string;
+  recommendedAction?: string;
 }
 
 export interface AgentLogSummary {

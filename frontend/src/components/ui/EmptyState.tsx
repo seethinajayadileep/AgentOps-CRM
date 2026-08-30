@@ -9,19 +9,19 @@ interface EmptyStateProps {
 }
 
 /**
- * Friendly empty-state block used inside cards/lists.
+ * Empty-state block used inside cards and lists.
  */
 export default function EmptyState({ icon, title, description, action, className = '' }: EmptyStateProps) {
   return (
-    <div className={`glass-card p-12 text-center ${className}`}>
+    <div className={`px-6 py-12 text-center ${className}`}>
       {icon && (
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 text-zinc-400">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center border border-frost bg-page text-navy">
           {icon}
         </div>
       )}
-      <p className="font-medium text-zinc-200">{title}</p>
-      {description && <p className="mt-1 text-sm text-zinc-500">{description}</p>}
-      {action && <div className="mt-5 flex justify-center">{action}</div>}
+      <p className="font-serif text-xl text-ink">{title}</p>
+      {description && <p className="mx-auto mt-2 max-w-md text-[15px] leading-6 text-slate">{description}</p>}
+      {action && <div className="mt-6 flex justify-center">{action}</div>}
     </div>
   );
 }

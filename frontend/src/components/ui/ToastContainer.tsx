@@ -13,8 +13,8 @@ interface ToastContainerProps {
 }
 
 /**
- * Container that positions toasts in the top-right corner.
- */
+  * Container that positions toasts in the top-right corner.
+  */
 export default function ToastContainer({ toasts, onClose }: ToastContainerProps) {
   return (
     <div

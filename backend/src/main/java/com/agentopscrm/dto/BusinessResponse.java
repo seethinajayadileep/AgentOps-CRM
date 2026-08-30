@@ -17,6 +17,11 @@ public class BusinessResponse {
     private String contactEmail;
     private String contactPhone;
     private String crawlStatus;
+    private String crawlStartedAt;
+    private String crawlFinishedAt;
+    private String crawlError;
+    private Integer crawlPagesSaved;
+    private Integer crawlPagesTotal;
     private String createdAt;
     private String updatedAt;
 
@@ -100,6 +105,46 @@ public class BusinessResponse {
 
     public void setCrawlStatus(String crawlStatus) {
         this.crawlStatus = crawlStatus;
+    }
+
+    public String getCrawlStartedAt() {
+        return crawlStartedAt;
+    }
+
+    public void setCrawlStartedAt(String crawlStartedAt) {
+        this.crawlStartedAt = crawlStartedAt;
+    }
+
+    public String getCrawlFinishedAt() {
+        return crawlFinishedAt;
+    }
+
+    public void setCrawlFinishedAt(String crawlFinishedAt) {
+        this.crawlFinishedAt = crawlFinishedAt;
+    }
+
+    public String getCrawlError() {
+        return crawlError;
+    }
+
+    public void setCrawlError(String crawlError) {
+        this.crawlError = crawlError;
+    }
+
+    public Integer getCrawlPagesSaved() {
+        return crawlPagesSaved;
+    }
+
+    public void setCrawlPagesSaved(Integer crawlPagesSaved) {
+        this.crawlPagesSaved = crawlPagesSaved;
+    }
+
+    public Integer getCrawlPagesTotal() {
+        return crawlPagesTotal;
+    }
+
+    public void setCrawlPagesTotal(Integer crawlPagesTotal) {
+        this.crawlPagesTotal = crawlPagesTotal;
     }
 
     public String getCreatedAt() {

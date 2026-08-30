@@ -16,9 +16,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -41,6 +46,7 @@ public class VoiceCallService {
     private final VoiceCallRepository voiceCallRepository;
     private final LeadRepository leadRepository;
     private final VapiClient vapiClient;
+    private final RestTemplate restTemplate;
     private final String assistantId;
     private final String phoneNumberId;
 
@@ -48,12 +54,14 @@ public class VoiceCallService {
         VoiceCallRepository voiceCallRepository,
         LeadRepository leadRepository,
         VapiClient vapiClient,
+        RestTemplate restTemplate,
         @Value("${vapi.assistant-id}") String assistantId,
         @Value("${vapi.phone-number-id}") String phoneNumberId
     ) {
         this.voiceCallRepository = voiceCallRepository;
         this.leadRepository = leadRepository;
         this.vapiClient = vapiClient;
+        this.restTemplate = restTemplate;
         this.assistantId = assistantId;
         this.phoneNumberId = phoneNumberId;
     }
@@ -224,13 +232,143 @@ public class VoiceCallService {
     }
 
     /**
-     * Get a single voice call by ID.
+     * Proxied recording bytes plus a playable media type.
+     * The provider URL is never returned to clients.
+     */
+    public record RecordingPayload(byte[] data, MediaType contentType) {
+    }
+
+    /**
+     * Fetch a call recording through the CRM so the browser never talks to the provider.
      *
      * @param callId the ID of the call
-     * @return the voice call response
-     * @throws IllegalArgumentException if call not found
+     * @return audio bytes and the media type browsers need to decode them
+     * @throws IllegalArgumentException if the call or recording is missing
+     * @throws IllegalStateException if the upstream fetch fails
      */
     @Transactional
+    public RecordingPayload fetchRecording(UUID callId) {
+        VoiceCall voiceCall = voiceCallRepository.findById(callId)
+            .orElseThrow(() -> new IllegalArgumentException("Voice call not found with ID: " + callId));
+        String url = voiceCall.getRecordingUrl();
+        if (isHttpUrl(url)) {
+            try {
+                return downloadRecording(url);
+            } catch (IllegalStateException e) {
+                logger.warn("Stored recording URL failed for call {} err={}",
+                    callId, e.getClass().getSimpleName());
+            }
+        }
+
+        String refreshed = refreshRecordingUrl(voiceCall);
+        if (isHttpUrl(refreshed)) {
+            RecordingPayload payload = downloadRecording(refreshed);
+            if (!refreshed.equals(url)) {
+                voiceCall.setRecordingUrl(refreshed);
+                voiceCallRepository.save(voiceCall);
+            }
+            return payload;
+        }
+
+        if (url == null || url.isBlank()) {
+            throw new IllegalArgumentException("No recording is available for this call");
+        }
+        if (!isHttpUrl(url)) {
+            throw new IllegalArgumentException("Recording is not playable");
+        }
+        throw new IllegalStateException("Recording could not be retrieved");
+    }
+
+    private RecordingPayload downloadRecording(String url) {
+        if (!isHttpUrl(url)) {
+            throw new IllegalArgumentException("Recording is not playable");
+        }
+        try {
+            ResponseEntity<byte[]> remote = vapiClient.downloadMedia(url);
+            if (remote.getBody() == null || remote.getBody().length == 0) {
+                throw new IllegalStateException("Recording could not be retrieved");
+            }
+            return new RecordingPayload(remote.getBody(), resolveAudioMediaType(remote.getHeaders(), url));
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            String host = "unknown";
+            try {
+                host = URI.create(url).getHost();
+            } catch (Exception ignored) {
+                // keep host unknown rather than logging the URL
+            }
+            logger.warn("Recording download failed host={} err={}", host, e.getClass().getSimpleName());
+            throw new IllegalStateException("Recording could not be retrieved");
+        }
+    }
+
+    private String refreshRecordingUrl(VoiceCall voiceCall) {
+        String vapiCallId = voiceCall.getVapiCallId();
+        if (vapiCallId == null || vapiCallId.isBlank()) {
+            return null;
+        }
+        try {
+            return extractRecordingUrl(vapiClient.getCall(vapiCallId));
+        } catch (Exception e) {
+            logger.warn("Could not refresh recording URL for call {}", voiceCall.getId());
+            return null;
+        }
+    }
+
+    static String extractRecordingUrl(VapiClient.VapiCallResponse remote) {
+        if (remote == null) {
+            return null;
+        }
+        if (remote.recordingUrl != null && !remote.recordingUrl.isBlank()) {
+            return remote.recordingUrl;
+        }
+        if (remote.artifact == null) {
+            return null;
+        }
+        if (remote.artifact.recordingUrl != null && !remote.artifact.recordingUrl.isBlank()) {
+            return remote.artifact.recordingUrl;
+        }
+        if (remote.artifact.stereoRecordingUrl != null && !remote.artifact.stereoRecordingUrl.isBlank()) {
+            return remote.artifact.stereoRecordingUrl;
+        }
+        return null;
+    }
+
+    static boolean isHttpUrl(String url) {
+        return url != null && (url.startsWith("https://") || url.startsWith("http://"));
+    }
+
+    static MediaType resolveAudioMediaType(HttpHeaders headers, String url) {
+        MediaType type = headers != null ? headers.getContentType() : null;
+        if (type != null && "audio".equalsIgnoreCase(type.getType())) {
+            return type;
+        }
+        return inferAudioMediaType(url);
+    }
+
+    static MediaType inferAudioMediaType(String url) {
+        String path = url == null ? "" : url;
+        int query = path.indexOf('?');
+        if (query >= 0) {
+            path = path.substring(0, query);
+        }
+        String lower = path.toLowerCase();
+        if (lower.endsWith(".wav")) {
+            return MediaType.parseMediaType("audio/wav");
+        }
+        if (lower.endsWith(".webm")) {
+            return MediaType.parseMediaType("audio/webm");
+        }
+        if (lower.endsWith(".ogg") || lower.endsWith(".oga")) {
+            return MediaType.parseMediaType("audio/ogg");
+        }
+        if (lower.endsWith(".m4a") || lower.endsWith(".mp4")) {
+            return MediaType.parseMediaType("audio/mp4");
+        }
+        return MediaType.parseMediaType("audio/mpeg");
+    }
+
     public VoiceCallResponse getCall(UUID callId) {
         VoiceCall voiceCall = voiceCallRepository.findById(callId)
             .orElseThrow(() -> new IllegalArgumentException("Voice call not found with ID: " + callId));
@@ -301,8 +439,7 @@ public class VoiceCallService {
         }
 
         // recording URL (top-level or nested in artifact)
-        String recordingUrl = remote.recordingUrl != null ? remote.recordingUrl
-            : (remote.artifact != null ? remote.artifact.recordingUrl : null);
+        String recordingUrl = extractRecordingUrl(remote);
         if (recordingUrl != null && !recordingUrl.equals(voiceCall.getRecordingUrl())) {
             voiceCall.setRecordingUrl(recordingUrl);
             changed = true;

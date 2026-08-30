@@ -18,14 +18,19 @@ import {
   X,
   MessageCircle,
 } from 'lucide-react';
-import { businessApi } from '../api/business';
+import { businessApi, type BusinessDependencies } from '../api/business';
 import { crawlApi, type Document } from '../api/crawl';
 import { ragApi, type RagResultItem } from '../api/rag';
 import { useKnowledgeBaseBuildJob } from '../hooks/useKnowledgeBaseBuildJob';
+import { useCrawlJob, isCrawlActive } from '../hooks/useCrawlJob';
+import { useIntegrations } from '../hooks/useIntegrations';
+import { useToast } from '../hooks/useToast';
 import type { ApiResponse, Business } from '../types/index';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import LoadingState from '../components/ui/LoadingState';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import ToastContainer from '../components/ui/ToastContainer';
 
 /** Light markdown cleanup for chunk previews so raw links/images aren't shown as prose. */
 function stripMarkdown(text: string): string {
@@ -39,11 +44,11 @@ function stripMarkdown(text: string): string {
 }
 
 /**
- * Business detail page.
- *
- * @version 0.4.0
- * Feature: F-002, F-003, F-004 (Build Knowledge Base + RAG test search)
- */
+  * Business detail page.
+  *
+  * @version 0.4.0
+  * Feature: F-002, F-003, F-004 (Build Knowledge Base + RAG test search)
+  */
 export default function BusinessDetail() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -56,11 +61,17 @@ export default function BusinessDetail() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [crawling, setCrawling] = useState(false);
-  const [crawlError, setCrawlError] = useState<string | null>(null);
+  const crawlJob = useCrawlJob(id);
+  const { toasts, showToast, closeToast } = useToast();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [dependencies, setDependencies] = useState<BusinessDependencies | null>(null);
 
   // Knowledge base build state (Bug 2: async job workflow with polling)
   const kbJob = useKnowledgeBaseBuildJob(id);
+  const integrations = useIntegrations();
+  const firecrawlReady = integrations.ready('Firecrawl');
+  const openaiReady = integrations.ready('OpenAI');
 
   // RAG search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -104,51 +115,48 @@ export default function BusinessDetail() {
     }
   };
 
+  const openDeleteDialog = async () => {
+    if (!business) return;
+    try {
+      const response = await businessApi.getDependencies(id);
+      if (response.success && response.data) {
+        setDependencies(response.data);
+      } else {
+        setDependencies(null);
+      }
+    } catch {
+      setDependencies(null);
+    }
+    setDeleteOpen(true);
+  };
+
   const handleDelete = async () => {
     if (!business) return;
-
-    if (
-      !confirm(
-        'Are you sure you want to delete this business? This will also delete all related data including documents, conversations, leads, and agent logs.'
-      )
-    ) {
-      return;
-    }
-
+    setDeleteBusy(true);
     try {
       const response: ApiResponse<void> = await businessApi.deleteBusiness(id);
       if (response.success) {
-        navigate('/businesses');
+        showToast('success', 'Business deleted. Related records were removed.');
+        navigate('/businesses', { state: { toast: 'Business deleted successfully' } });
       } else {
         setError(response.error || 'Failed to delete business');
+        setDeleteOpen(false);
       }
     } catch (err: any) {
-      setError(err.message || 'Network error occurred');
+      setError(err.message || 'The business could not be deleted. No records were removed.');
+      setDeleteOpen(false);
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
   const handleStartCrawl = async () => {
-    if (!business) return;
-
-    setCrawling(true);
-    setCrawlError(null);
-
-    try {
-      const response = await crawlApi.startCrawl(id);
-      if (response.success) {
-        await fetchBusiness();
-      } else {
-        setCrawlError(response.error || 'Failed to start crawl');
-      }
-    } catch (err: any) {
-      setCrawlError(err.message || 'Failed to start crawl');
-    } finally {
-      setCrawling(false);
-    }
+    if (!business || !firecrawlReady) return;
+    await crawlJob.startCrawl();
   };
 
   const handleBuildKB = async () => {
-    if (!business) return;
+    if (!business || !openaiReady) return;
     // useKnowledgeBaseBuildJob already guards against duplicate submissions
     // while a build is starting or actively running.
     await kbJob.startBuild();
@@ -156,7 +164,7 @@ export default function BusinessDetail() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!business) return;
+    if (!business || !openaiReady) return;
 
     const trimmedQuery = searchQuery.trim();
     if (!trimmedQuery) {
@@ -207,20 +215,26 @@ export default function BusinessDetail() {
 
   useEffect(() => {
     fetchBusiness();
-    const interval = setInterval(() => {
-      if (business?.crawlStatus === 'IN_PROGRESS') {
-        fetchBusiness();
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    if (crawlJob.status?.status === 'COMPLETED' || crawlJob.status?.status === 'FAILED') {
+      fetchDocuments();
+      fetchBusiness();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crawlJob.status?.status]);
+
+  const liveCrawlStatus = crawlJob.status?.status || business?.crawlStatus || 'NOT_STARTED';
 
   const getCrawlStatusInfo = (status: string) => {
     switch (status) {
       case 'NOT_STARTED':
         return { color: 'gray' as const, icon: Clock, text: 'Not started' };
+      case 'QUEUED':
+        return { color: 'cyan' as const, icon: Clock, text: 'Queued' };
+      case 'CRAWLING':
       case 'IN_PROGRESS':
         return { color: 'cyan' as const, icon: RefreshCw, text: 'Crawling…' };
       case 'COMPLETED':
@@ -232,15 +246,40 @@ export default function BusinessDetail() {
     }
   };
 
-  const statusInfo = business ? getCrawlStatusInfo(business.crawlStatus) : null;
+  const statusInfo = business ? getCrawlStatusInfo(liveCrawlStatus) : null;
 
   return (
     <div className="space-y-6">
+      <ToastContainer toasts={toasts} onClose={closeToast} />
+      {deleteOpen && (
+        <ConfirmDialog
+          title="Delete this business?"
+          confirmLabel="Delete business"
+          danger
+          busy={deleteBusy}
+          onConfirm={handleDelete}
+          onClose={() => setDeleteOpen(false)}
+        >
+          <p>
+            This permanently deletes <strong>{business?.name}</strong> and all related records in one
+            transaction.
+          </p>
+          <ul className="mt-3 list-disc space-y-1 pl-5">
+            <li>{dependencies?.leads ?? 0} leads</li>
+            <li>{dependencies?.conversations ?? 0} conversations</li>
+            <li>{dependencies?.documents ?? 0} documents</li>
+            <li>{dependencies?.approvals ?? 0} approvals</li>
+            <li>{dependencies?.agentLogs ?? 0} agent logs</li>
+            <li>{dependencies?.voiceCalls ?? 0} voice calls</li>
+          </ul>
+          <p className="mt-3">If deletion fails, the business and its records stay intact.</p>
+        </ConfirmDialog>
+      )}
       {/* Page Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <Link
           to="/businesses"
-          className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-100"
+          className="inline-flex items-center gap-2 text-sm text-slate hover:text-ink"
         >
           <ArrowLeft size={18} />
           <span>Back to Businesses</span>
@@ -249,23 +288,30 @@ export default function BusinessDetail() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleStartCrawl}
-              disabled={crawling || business.crawlStatus === 'IN_PROGRESS'}
+              disabled={!firecrawlReady || crawlJob.starting || crawlJob.isActive}
               className="btn-primary"
+              title={!firecrawlReady ? 'Firecrawl is not configured' : undefined}
             >
               <Play size={16} />
-              {crawling ? 'Crawling…' : 'Start Crawl'}
+              {crawlJob.starting || crawlJob.isActive ? 'Crawling…' : 'Start Crawl'}
             </button>
             <button
               onClick={handleBuildKB}
-              disabled={kbJob.starting || kbJob.isBuildActive || !documents.length}
+              disabled={!openaiReady || kbJob.starting || kbJob.isBuildActive || !documents.length}
               className="btn-secondary"
+              title={!openaiReady ? 'OpenAI is not configured' : undefined}
             >
               <Database size={16} />
               {kbJob.starting || kbJob.isBuildActive
                 ? `Building… ${kbJob.job ? `${kbJob.job.progressPercentage}%` : ''}`
                 : 'Build Knowledge Base'}
             </button>
-            <button onClick={() => navigate(`/businesses/${business.id}/chat`)} className="btn-success">
+            <button
+              onClick={() => navigate(`/businesses/${business.id}/chat`)}
+              disabled={!openaiReady}
+              className="btn-success"
+              title={!openaiReady ? 'OpenAI is not configured' : undefined}
+            >
               <MessageCircle size={16} />
               <span>Test Chat</span>
             </button>
@@ -273,7 +319,7 @@ export default function BusinessDetail() {
               <Edit size={16} />
               <span>Edit</span>
             </button>
-            <button onClick={handleDelete} className="btn-danger">
+            <button onClick={openDeleteDialog} className="btn-danger">
               <Trash2 size={16} />
               <span>Delete</span>
             </button>
@@ -281,45 +327,77 @@ export default function BusinessDetail() {
         )}
       </div>
 
-      {crawlError && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{crawlError}</div>
+      {!firecrawlReady && (
+        <div className="rounded-sm border border-frost bg-mist p-4 text-ink">
+          Website crawling is unavailable until Firecrawl is configured in Settings.
+        </div>
+      )}
+      {!openaiReady && (
+        <div className="rounded-sm border border-frost bg-mist p-4 text-ink">
+          Knowledge base and chat actions are unavailable until OpenAI is configured in Settings.
+        </div>
+      )}
+      {crawlJob.error && (
+        <div className="rounded-sm border border-frost bg-mist p-4 text-ink">{crawlJob.error}</div>
+      )}
+      {crawlJob.isActive && crawlJob.status && (
+        <div className="rounded-sm border border-frost bg-mist p-4 text-ink">
+          Crawl {liveCrawlStatus.toLowerCase()}: {crawlJob.status.pagesSaved ?? 0}
+          {crawlJob.status.pagesTotal ? ` / ${crawlJob.status.pagesTotal}` : ''} pages
+          {crawlJob.status.elapsedSeconds != null ? ` · ${crawlJob.status.elapsedSeconds}s elapsed` : ''}.
+          Status is saved and survives refresh.
+        </div>
+      )}
+      {liveCrawlStatus === 'FAILED' && (crawlJob.status?.error || business?.crawlError) && (
+        <div className="rounded-sm border border-frost bg-mist p-4 text-ink">
+          Crawl failed: {crawlJob.status?.error || business?.crawlError}
+        </div>
       )}
       {kbJob.error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{kbJob.error}</div>
+        <div className="rounded-sm border border-frost bg-mist p-4 text-ink">{kbJob.error}</div>
       )}
       {kbJob.job && kbJob.isBuildActive && (
-        <div className="rounded-xl border border-primary-500/30 bg-primary-500/10 p-4 text-primary-200">
+        <div className="rounded-sm border border-frost bg-mist p-4 text-ink">
           Knowledge base build in progress: <strong>{kbJob.job.status}</strong> (
           {kbJob.job.progressPercentage}%). The backend accepted this job and continues processing even if
           this page is refreshed.
         </div>
       )}
       {kbJob.job && kbJob.job.status === 'COMPLETED' && (
-        <div className="rounded-xl border border-[#22C55E]/30 bg-[#22C55E]/10 p-4 text-[#4ade80]">
+        <div className="rounded-sm border border-frost bg-mist p-4 text-ink">
           Knowledge base built: {kbJob.job.chunksCreated} chunks, {kbJob.job.embeddingsCreated} embeddings.
         </div>
       )}
       {kbJob.job && kbJob.job.status === 'PARTIAL' && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-300">
+        <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-4 text-amber-300">
           Knowledge base build finished with warnings: {kbJob.job.errorMessage || 'Some content could not be processed.'}
         </div>
       )}
       {kbJob.job && kbJob.job.status === 'FAILED' && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+        <div className="rounded-sm border border-frost bg-mist p-4 text-ink">
           Knowledge base build failed: {kbJob.job.errorMessage || 'An unexpected error occurred.'}
+          <button type="button" className="btn-secondary ml-3" onClick={handleBuildKB}>
+            Retry
+          </button>
         </div>
+      )}
+      {kbJob.job && kbJob.isBuildActive && (
+        <p className="text-sm text-slate">
+          Stage: {kbJob.job.status === 'QUEUED' ? 'Preparing' : kbJob.job.status.toLowerCase()} ·{' '}
+          {kbJob.job.documentsProcessed}/{kbJob.job.documentsTotal} documents
+        </p>
       )}
 
       {loading && <LoadingState label="Loading business…" />}
 
       {error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div>
+        <div className="rounded-sm border border-frost bg-mist p-4 text-ink">{error}</div>
       )}
 
       {!loading && !error && !business && (
         <Card className="p-12 text-center">
-          <FileText size={40} className="mx-auto mb-4 text-zinc-600" />
-          <p className="text-zinc-400">Business not found</p>
+          <FileText size={40} className="mx-auto mb-4 text-silver" />
+          <p className="text-slate">Business not found</p>
         </Card>
       )}
 
@@ -329,12 +407,12 @@ export default function BusinessDetail() {
           <Card className="p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-white">{business.name}</h2>
+                <h2 className="text-2xl font-bold text-ink">{business.name}</h2>
                 <a
                   href={business.websiteUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-primary-300 hover:underline"
+                  className="mt-2 inline-flex items-center gap-1 text-ink hover:underline"
                 >
                   <Globe size={16} />
                   <span className="max-w-md truncate">{business.websiteUrl}</span>
@@ -344,7 +422,7 @@ export default function BusinessDetail() {
                 <Badge color={statusInfo.color} className="gap-1.5 !py-1">
                   <statusInfo.icon
                     size={14}
-                    className={business.crawlStatus === 'IN_PROGRESS' ? 'animate-spin' : ''}
+                    className={isCrawlActive(liveCrawlStatus) ? 'animate-spin' : ''}
                   />
                   {statusInfo.text}
                 </Badge>
@@ -355,16 +433,16 @@ export default function BusinessDetail() {
           {/* RAG Search Section */}
           <Card className="p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
-                <Sparkles size={18} className="text-primary-400" />
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-ink">
+                <Sparkles size={18} className="text-slate" />
                 RAG Search
               </h3>
-              <span className="text-sm text-zinc-500">{documents.length} documents available</span>
+              <span className="text-sm text-slate">{documents.length} documents available</span>
             </div>
 
             {!documents.length ? (
-              <div className="py-8 text-center text-zinc-500">
-                <Database size={30} className="mx-auto mb-2 text-zinc-600" />
+              <div className="py-8 text-center text-slate">
+                <Database size={30} className="mx-auto mb-2 text-silver" />
                 <p>No documents available</p>
                 <p className="mt-1 text-sm">
                   {business.crawlStatus === 'NOT_STARTED'
@@ -383,12 +461,17 @@ export default function BusinessDetail() {
                       placeholder="Ask a question about this business…"
                       className="input-dark flex-1"
                     />
-                    <button type="submit" disabled={searching} className="btn-primary">
+                    <button type="submit" disabled={!openaiReady || searching} className="btn-primary">
                       <Search size={16} />
                       {searching ? 'Searching…' : 'Search'}
                     </button>
                     {(searchResults.length > 0 || searchQuery) && (
-                      <button type="button" onClick={clearSearch} className="btn-ghost">
+                      <button
+                        type="button"
+                        onClick={clearSearch}
+                        className="btn-ghost"
+                        aria-label="Clear search results"
+                      >
                         <X size={16} />
                       </button>
                     )}
@@ -396,7 +479,7 @@ export default function BusinessDetail() {
                 </form>
 
                 {searchError && (
-                  <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+                  <div className="mb-4 rounded-sm border border-frost bg-mist p-4 text-ink">
                     {searchError}
                   </div>
                 )}
@@ -405,19 +488,25 @@ export default function BusinessDetail() {
 
                 {/* AI Answer card (shown first) */}
                 {!searching && aiAnswer && (
-                  <div className="mb-6 rounded-2xl border border-primary-500/30 bg-primary-500/[0.07] p-5">
+                  <div className="mb-6 rounded-sm border border-frost bg-mist p-5">
                     <div className="mb-3 flex items-center gap-2">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6]">
-                        <Sparkles size={14} className="text-white" />
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink">
+                        <Sparkles size={14} className="text-snow" />
                       </span>
-                      <h4 className="font-semibold text-white">AI Answer</h4>
+                      <h4 className="font-semibold text-ink">AI Answer</h4>
                       <Badge color="purple">AI Agent</Badge>
                       {aiStatus && aiStatus !== 'COMPLETED' && <Badge color="amber">{aiStatus}</Badge>}
                     </div>
-                    <p className="whitespace-pre-wrap leading-relaxed text-zinc-100">{aiAnswer}</p>
-                    {aiSources.length > 0 && (
-                      <div className="mt-4 border-t border-white/[0.08] pt-3">
-                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Sources</p>
+                    <p className="whitespace-pre-wrap leading-relaxed text-ink">{aiAnswer}</p>
+                    {aiStatus && aiStatus !== 'COMPLETED' && (
+                      <p className="mt-3 text-sm text-slate">
+                        The knowledge base does not contain confirmed information for this question, so no
+                        sources are shown.
+                      </p>
+                    )}
+                    {aiSources.length > 0 && aiStatus === 'COMPLETED' && (
+                      <div className="mt-4 border-t border-frost pt-3">
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate">Sources</p>
                         <div className="flex flex-wrap gap-2">
                           {aiSources.map((src) => (
                             <a
@@ -425,7 +514,7 @@ export default function BusinessDetail() {
                               href={src}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex max-w-[420px] items-center gap-1 rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1 text-xs text-blue-300 transition-colors hover:bg-white/[0.08]"
+                              className="inline-flex max-w-[420px] items-center gap-1 rounded-full border border-frost bg-mist px-3 py-1 text-xs text-ink transition-colors hover:bg-frost"
                             >
                               <Globe size={12} />
                               <span className="truncate">{src}</span>
@@ -440,13 +529,13 @@ export default function BusinessDetail() {
                 {/* Retrieved chunks (debug/details) */}
                 {!searching && searchResults.length > 0 && (
                   <div className="space-y-3">
-                    <p className="text-sm font-medium text-zinc-400">
+                    <p className="text-sm font-medium text-slate">
                       Retrieved Knowledge Chunks ({searchResults.length}) · for "{searchQuery}"
                     </p>
                     {searchResults.map((result) => (
                       <div
                         key={result.chunkId}
-                        className="rounded-xl border border-white/[0.06] bg-black/30 p-4 transition-colors hover:border-white/[0.12]"
+                        className="rounded-sm border border-frost bg-snow p-4 transition-colors hover:border-silver"
                       >
                         <div className="mb-2 flex items-center gap-2">
                           <Badge color="blue">#{result.rank}</Badge>
@@ -454,7 +543,7 @@ export default function BusinessDetail() {
                             <Badge color="cyan">{Math.round(result.similarity * 100)}% match</Badge>
                           )}
                         </div>
-                        <p className="mb-2 line-clamp-3 text-sm text-zinc-300">
+                        <p className="mb-2 line-clamp-3 text-sm text-ink">
                           {(() => {
                             const clean = stripMarkdown(result.content);
                             return clean.length > 400 ? clean.substring(0, 400) + '…' : clean;
@@ -464,7 +553,7 @@ export default function BusinessDetail() {
                           href={result.sourceUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-sm text-primary-300 hover:underline"
+                          className="inline-flex items-center gap-1 text-sm text-ink hover:underline"
                         >
                           <Globe size={14} />
                           <span className="max-w-[300px] truncate">
@@ -477,16 +566,16 @@ export default function BusinessDetail() {
                 )}
 
                 {!searching && searched && searchResults.length === 0 && !searchError && (
-                  <div className="py-8 text-center text-zinc-500">
-                    <Search size={30} className="mx-auto mb-2 text-zinc-600" />
+                  <div className="py-8 text-center text-slate">
+                    <Search size={30} className="mx-auto mb-2 text-silver" />
                     <p>No results found for "{searchQuery}"</p>
                     <p className="mt-1 text-sm">Try different keywords or build the knowledge base</p>
                   </div>
                 )}
 
                 {!searching && !searched && searchResults.length === 0 && (
-                  <div className="py-8 text-center text-zinc-500">
-                    <Search size={30} className="mx-auto mb-2 text-zinc-600" />
+                  <div className="py-8 text-center text-slate">
+                    <Search size={30} className="mx-auto mb-2 text-silver" />
                     <p>Ask a question to search in the knowledge base</p>
                     <p className="mt-1 text-sm">Examples: "services offered", "contact information"</p>
                   </div>
@@ -498,12 +587,12 @@ export default function BusinessDetail() {
           {/* Crawled Documents */}
           <Card className="p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">Crawled Documents</h3>
-              <span className="text-sm text-zinc-500">{documents.length} pages</span>
+              <h3 className="text-lg font-semibold text-ink">Crawled Documents</h3>
+              <span className="text-sm text-slate">{documents.length} pages</span>
             </div>
             {documents.length === 0 ? (
-              <div className="py-8 text-center text-zinc-500">
-                <FileText size={30} className="mx-auto mb-2 text-zinc-600" />
+              <div className="py-8 text-center text-slate">
+                <FileText size={30} className="mx-auto mb-2 text-silver" />
                 <p>No documents crawled yet</p>
                 {business.crawlStatus === 'NOT_STARTED' && (
                   <p className="mt-1 text-sm">Click "Start Crawl" to begin</p>
@@ -517,10 +606,10 @@ export default function BusinessDetail() {
                     href={doc.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block rounded-xl border border-white/[0.06] p-3 transition-colors hover:border-white/[0.12] hover:bg-white/[0.03]"
+                    className="block rounded-sm border border-frost p-3 transition-colors hover:border-silver hover:bg-mist"
                   >
-                    <div className="truncate font-medium text-zinc-100">{doc.title}</div>
-                    <div className="truncate text-sm text-zinc-500">{doc.url}</div>
+                    <div className="truncate font-medium text-ink">{doc.title}</div>
+                    <div className="truncate text-sm text-slate">{doc.url}</div>
                   </a>
                 ))}
               </div>
@@ -530,56 +619,56 @@ export default function BusinessDetail() {
           {/* Details Cards */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <Card className="p-6">
-              <h3 className="mb-4 text-lg font-semibold text-white">Contact Information</h3>
+              <h3 className="mb-4 text-lg font-semibold text-ink">Contact Information</h3>
               <div className="space-y-3">
                 {business.contactEmail && (
                   <div>
-                    <p className="text-sm text-zinc-500">Email</p>
-                    <p className="text-zinc-100">{business.contactEmail}</p>
+                    <p className="text-sm text-slate">Email</p>
+                    <p className="text-ink">{business.contactEmail}</p>
                   </div>
                 )}
                 {business.contactPhone && (
                   <div>
-                    <p className="text-sm text-zinc-500">Phone</p>
-                    <p className="text-zinc-100">{business.contactPhone}</p>
+                    <p className="text-sm text-slate">Phone</p>
+                    <p className="text-ink">{business.contactPhone}</p>
                   </div>
                 )}
                 {!business.contactEmail && !business.contactPhone && (
-                  <p className="italic text-zinc-500">No contact information provided</p>
+                  <p className="italic text-slate">No contact information provided</p>
                 )}
               </div>
             </Card>
 
             <Card className="p-6">
-              <h3 className="mb-4 text-lg font-semibold text-white">Business Details</h3>
+              <h3 className="mb-4 text-lg font-semibold text-ink">Business Details</h3>
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm text-zinc-500">Industry</p>
-                  <p className="text-zinc-100">{business.industry || '-'}</p>
+                  <p className="text-sm text-slate">Industry</p>
+                  <p className="text-ink">{business.industry || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-zinc-500">Description</p>
-                  <p className="text-zinc-100">{business.description || 'No description provided'}</p>
+                  <p className="text-sm text-slate">Description</p>
+                  <p className="text-ink">{business.description || 'No description provided'}</p>
                 </div>
               </div>
             </Card>
 
             <Card className="p-6 md:col-span-2">
-              <h3 className="mb-4 text-lg font-semibold text-white">Timeline</h3>
+              <h3 className="mb-4 text-lg font-semibold text-ink">Timeline</h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <Calendar size={18} className="text-zinc-500" />
+                  <Calendar size={18} className="text-slate" />
                   <div>
-                    <p className="text-sm text-zinc-500">Created</p>
-                    <p className="text-zinc-100">{new Date(business.createdAt).toLocaleString()}</p>
+                    <p className="text-sm text-slate">Created</p>
+                    <p className="text-ink">{new Date(business.createdAt).toLocaleString()}</p>
                   </div>
                 </div>
                 {business.updatedAt && (
                   <div className="flex items-center gap-3">
-                    <Clock size={18} className="text-zinc-500" />
+                    <Clock size={18} className="text-slate" />
                     <div>
-                      <p className="text-sm text-zinc-500">Last Updated</p>
-                      <p className="text-zinc-100">{new Date(business.updatedAt).toLocaleString()}</p>
+                      <p className="text-sm text-slate">Last Updated</p>
+                      <p className="text-ink">{new Date(business.updatedAt).toLocaleString()}</p>
                     </div>
                   </div>
                 )}

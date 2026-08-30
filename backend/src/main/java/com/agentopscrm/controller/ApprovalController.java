@@ -58,6 +58,9 @@ public class ApprovalController {
                     leadId, response.getApprovals().size());
             
             return ResponseEntity.ok(response);
+        } catch (IllegalStateException e) {
+            log.warn("Follow-up generation blocked for lead {}: {}", leadId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         } catch (RuntimeException e) {
             log.error("Failed to generate follow-up messages for lead {}", leadId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -74,19 +77,14 @@ public class ApprovalController {
             @RequestParam(required = false) UUID leadId,
             @RequestParam(required = false) UUID businessId) {
         
-        log.info("GET /api/approvals - status: {}, type: {}, leadId: {}, businessId: {}", 
+        log.info("GET /api/approvals - status: {}, type: {}, leadId: {}, businessId: {}",
                 status, type, leadId, businessId);
 
-        try {
-            List<ApprovalResponse> approvals = approvalService.getAllApprovals(
-                    status, type, leadId, businessId);
-            
-            log.info("Retrieved {} approvals", approvals.size());
-            return ResponseEntity.ok(approvals);
-        } catch (Exception e) {
-            log.error("Failed to retrieve approvals", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        List<ApprovalResponse> approvals = approvalService.getAllApprovals(
+                status, type, leadId, businessId);
+
+        log.info("Retrieved {} approvals", approvals.size());
+        return ResponseEntity.ok(approvals);
     }
 
     /**

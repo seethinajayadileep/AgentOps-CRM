@@ -26,7 +26,12 @@ export interface Business {
   description?: string;
   contactEmail?: string;
   contactPhone?: string;
-  crawlStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  crawlStatus: 'NOT_STARTED' | 'QUEUED' | 'CRAWLING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  crawlStartedAt?: string | null;
+  crawlFinishedAt?: string | null;
+  crawlError?: string | null;
+  crawlPagesSaved?: number;
+  crawlPagesTotal?: number;
   createdAt: string;
   updatedAt?: string;
 }

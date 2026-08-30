@@ -9,6 +9,9 @@ package com.agentopscrm.entity.enums;
 public enum ReadinessStatus {
     /** Component is fully operational and healthy */
     HEALTHY,
+
+    /** Live provider check authenticated successfully */
+    CONNECTED,
     
     /** Component is configured but not verified as operational */
     CONFIGURED,
