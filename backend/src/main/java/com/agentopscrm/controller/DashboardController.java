@@ -8,6 +8,9 @@ import com.agentopscrm.repository.BusinessRepository;
 import com.agentopscrm.repository.ConversationRepository;
 import com.agentopscrm.repository.LeadRepository;
 import com.agentopscrm.repository.VoiceCallRepository;
+import com.agentopscrm.service.DashboardStatsCache;
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -44,6 +47,7 @@ public class DashboardController {
     private final VoiceCallRepository voiceCallRepository;
     private final ApprovalRepository approvalRepository;
     private final AgentLogRepository agentLogRepository;
+    private final DashboardStatsCache dashboardStatsCache;
 
     public DashboardController(
         BusinessRepository businessRepository,
@@ -51,7 +55,8 @@ public class DashboardController {
         ConversationRepository conversationRepository,
         VoiceCallRepository voiceCallRepository,
         ApprovalRepository approvalRepository,
-        AgentLogRepository agentLogRepository
+        AgentLogRepository agentLogRepository,
+        DashboardStatsCache dashboardStatsCache
     ) {
         this.businessRepository = businessRepository;
         this.leadRepository = leadRepository;
@@ -59,6 +64,7 @@ public class DashboardController {
         this.voiceCallRepository = voiceCallRepository;
         this.approvalRepository = approvalRepository;
         this.agentLogRepository = agentLogRepository;
+        this.dashboardStatsCache = dashboardStatsCache;
     }
 
     /**
@@ -69,6 +75,11 @@ public class DashboardController {
     @GetMapping("/stats")
     @Transactional(readOnly = true)
     public ResponseEntity<DashboardStats> getStats() {
+        var cached = dashboardStatsCache.get();
+        if (cached.isPresent()) {
+            return ResponseEntity.ok(cached.get());
+        }
+
         logger.info("Fetching dashboard stats");
 
         DashboardStats stats = new DashboardStats();
@@ -114,6 +125,7 @@ public class DashboardController {
             activity.add(item);
         }
         stats.recentActivity = activity;
+        dashboardStatsCache.put(stats);
 
         return ResponseEntity.ok(stats);
     }
@@ -121,6 +133,8 @@ public class DashboardController {
     /**
      * Aggregated dashboard statistics response.
      */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     public static class DashboardStats {
         public long activeBusinesses;
         public long totalLeads;
@@ -137,6 +151,8 @@ public class DashboardController {
         public List<ActivityItem> recentActivity = new ArrayList<>();
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     public static class Trend {
         public String direction;
         public String label;
@@ -169,6 +185,8 @@ public class DashboardController {
     /**
      * A single recent-activity entry derived from an agent log.
      */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     public static class ActivityItem {
         public String agentName;
         public String action;

@@ -3,7 +3,8 @@
 spring:
   application:
     name: agentops-crm
-  # Redis is unused. Auto-config is excluded so Railway can start without Redis.
+  # Redis auto-config stays off. Optional RedisConfig beans turn on when
+  # REDIS_URL / REDIS_ENABLED is set (auth rate limits + dashboard cache).
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
@@ -52,14 +53,14 @@ spring:
     # Flyway will automatically detect this from the SQL comment header
     mixed: false
 
-  # Redis Configuration (Optional - not currently used by application)
-  # Configuration present for future use, but Redis is not required
+  # Redis Configuration — used for login/signup throttling and dashboard cache
+  # when REDIS_URL is set (Railway) or REDIS_ENABLED=true (local Docker).
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      timeout: 60000ms
+      host: ${REDIS_HOST:${REDISHOST:localhost}}
+      port: ${REDIS_PORT:${REDISPORT:6379}}
+      password: ${REDIS_PASSWORD:${REDISPASSWORD:}}
+      timeout: 3000ms
       lettuce:
         pool:
           max-active: 8
@@ -120,6 +121,13 @@ app:
     cookie-same-site: ${AUTH_COOKIE_SAMESITE:Lax}
     seed-demo-user: ${AUTH_SEED_DEMO_USER:true}
     demo-password: ${AUTH_DEMO_PASSWORD:Demo@123}
+    rate-limit:
+      max-attempts: ${AUTH_RATE_LIMIT_MAX:10}
+      window-seconds: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:900}
+  redis:
+    enabled: ${REDIS_ENABLED:false}
+  dashboard:
+    cache-ttl-seconds: ${DASHBOARD_CACHE_TTL_SECONDS:20}
 
 jwt:
   secret: ${JWT_SECRET:change-this-demo-secret-to-a-long-random-value}

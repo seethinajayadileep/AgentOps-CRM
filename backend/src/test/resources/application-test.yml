@@ -28,6 +28,8 @@ app:
     external-actions-disabled: false
   auth:
     seed-demo-user: false
+  redis:
+    enabled: false
 
 jwt:
   secret: test-jwt-secret-for-unit-tests-only

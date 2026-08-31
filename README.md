@@ -251,6 +251,7 @@ Templates: `backend/.env.example`, `frontend/.env.example`.
 | `AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SAMESITE` | Local | Prod profile forces `true` / `None` |
 | `SHOWCASE_EXTERNAL_ACTIONS_DISABLED` | Either | Default `false` — operators can approve, search, call, delete |
 | `VITE_API_BASE_URL` | Vercel | Must include `/api` |
+| `REDIS_URL` | Railway | Optional. Login/signup rate limits and 20s dashboard cache |
 
 ## Auth and security notes
 

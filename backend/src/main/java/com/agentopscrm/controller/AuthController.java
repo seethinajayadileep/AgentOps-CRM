@@ -5,7 +5,9 @@ import com.agentopscrm.dto.auth.AuthUserResponse;
 import com.agentopscrm.dto.auth.LoginRequest;
 import com.agentopscrm.dto.auth.SignupRequest;
 import com.agentopscrm.entity.AppUser;
+import com.agentopscrm.service.AuthRateLimiter;
 import com.agentopscrm.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +28,7 @@ import java.time.Duration;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthRateLimiter authRateLimiter;
     private final String cookieName;
     private final boolean cookieSecure;
     private final String cookieSameSite;
@@ -33,11 +36,13 @@ public class AuthController {
 
     public AuthController(
             AuthService authService,
+            AuthRateLimiter authRateLimiter,
             @Value("${app.auth.cookie-name:agentcrm_session}") String cookieName,
             @Value("${app.auth.cookie-secure:false}") boolean cookieSecure,
             @Value("${app.auth.cookie-same-site:Lax}") String cookieSameSite,
             @Value("${jwt.expiration-ms:86400000}") long expirationMs) {
         this.authService = authService;
+        this.authRateLimiter = authRateLimiter;
         this.cookieName = cookieName;
         this.cookieSecure = cookieSecure;
         this.cookieSameSite = cookieSameSite;
@@ -47,7 +52,9 @@ public class AuthController {
     @PostMapping("/signup")
     public ResponseEntity<AuthSessionResponse> signup(
             @Valid @RequestBody SignupRequest request,
+            HttpServletRequest httpRequest,
             HttpServletResponse response) {
+        authRateLimiter.check("signup", request.getEmail(), clientIp(httpRequest));
         AuthSessionResponse session = authService.signup(request);
         writeSessionCookie(response, session.getToken());
         return ResponseEntity.ok(session);
@@ -56,7 +63,9 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthSessionResponse> login(
             @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest,
             HttpServletResponse response) {
+        authRateLimiter.check("login", request.getEmail(), clientIp(httpRequest));
         AuthSessionResponse session = authService.login(request);
         writeSessionCookie(response, session.getToken());
         return ResponseEntity.ok(session);
@@ -81,6 +90,14 @@ public class AuthController {
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, expired.toString());
         return ResponseEntity.noContent().build();
+    }
+
+    private static String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     private void writeSessionCookie(HttpServletResponse response, String token) {

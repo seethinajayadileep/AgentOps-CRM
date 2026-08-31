@@ -77,6 +77,9 @@ apiClient.interceptors.response.use(
       else if (data.error === 'INVALID_CREDENTIALS') {
         errorMessage = data.message || 'Email or password is incorrect.';
       }
+      else if (data.error === 'RATE_LIMITED') {
+        errorMessage = data.message || 'Too many attempts. Wait a few minutes and try again.';
+      }
       // Handle BusinessAlreadyExistsException
       else if (data.error === 'BUSINESS_ALREADY_EXISTS') {
         errorMessage = 'A business with this website URL already exists';

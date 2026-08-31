@@ -1,2 +1,3 @@
 org.springframework.boot.env.EnvironmentPostProcessor=\
-com.agentopscrm.config.RailwayDataSourceEnvironmentPostProcessor
+com.agentopscrm.config.RailwayDataSourceEnvironmentPostProcessor,\
+com.agentopscrm.config.RailwayRedisEnvironmentPostProcessor

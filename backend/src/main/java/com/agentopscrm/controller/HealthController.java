@@ -29,7 +29,9 @@ public class HealthController {
 
         Map<String, ServiceStatus> services = new LinkedHashMap<>();
         services.put("application", new ServiceStatus("UP", "AgentOps CRM API"));
-        services.put("redis", new ServiceStatus("DISABLED", "Redis is not required by this application"));
+        services.put("redis", new ServiceStatus(
+                "OPTIONAL",
+                "Used for auth rate limits and dashboard cache when REDIS_URL is set"));
 
         response.setServices(services);
         response.setVersion(AppVersion.VALUE);

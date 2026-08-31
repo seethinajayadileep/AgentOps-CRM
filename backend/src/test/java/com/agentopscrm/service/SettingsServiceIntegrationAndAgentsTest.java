@@ -178,7 +178,7 @@ class SettingsServiceIntegrationAndAgentsTest {
     void redisTestDoesNotReportHealthy() throws Exception {
         IntegrationTestResult result = settingsService.testIntegration("redis");
         assertFalse(result.isSuccess());
-        assertEquals(ReadinessStatus.UNKNOWN, result.getStatus());
+        assertEquals(ReadinessStatus.DISABLED, result.getStatus());
         assertFalse(result.getMessage().toLowerCase().contains("healthy"));
 
         when(embeddingService.isConfigured()).thenReturn(false);
@@ -193,7 +193,7 @@ class SettingsServiceIntegrationAndAgentsTest {
                 .findFirst()
                 .orElseThrow();
         assertFalse(redis.isConfigured());
-        assertEquals(ReadinessStatus.UNKNOWN, redis.getStatus());
+        assertEquals(ReadinessStatus.DISABLED, redis.getStatus());
     }
 
     @Test

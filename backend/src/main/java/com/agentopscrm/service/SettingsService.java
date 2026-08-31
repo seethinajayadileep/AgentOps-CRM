@@ -12,10 +12,12 @@ import com.agentopscrm.entity.enums.VoiceCallStatus;
 import com.agentopscrm.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.boot.actuate.health.Status;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -96,6 +98,16 @@ public class SettingsService {
     
     @Value("${apify.enabled:false}")
     private boolean apifyEnabled;
+
+    @Value("${app.redis.enabled:false}")
+    private boolean redisEnabled;
+
+    private StringRedisTemplate redisTemplate;
+
+    @Autowired(required = false)
+    public void setRedisTemplate(StringRedisTemplate redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
 
     public SettingsService(
             DataSource dataSource,
@@ -213,16 +225,34 @@ public class SettingsService {
         postgres.setLastChecked(Instant.now());
         integrations.add(postgres);
 
-        // Redis is optional and unused by the CRM runtime — do not claim HEALTHY.
+        // Redis: login/signup rate limits and a short dashboard stats cache.
         IntegrationStatus redis = new IntegrationStatus();
         redis.setName("Redis");
-        redis.setPurpose("Optional cache (not used by current CRM features)");
-        redis.setConfigured(false);
-        redis.setEnabled(false);
-        redis.setStatus(ReadinessStatus.UNKNOWN);
-        redis.setMessage("Redis is not used by this application. Connection testing is not available.");
-        redis.setConfigDetails("No Redis client is wired into the CRM");
+        redis.setPurpose("Auth rate limits and dashboard stats cache");
         redis.setLastChecked(Instant.now());
+        if (!redisEnabled || redisTemplate == null) {
+            redis.setConfigured(false);
+            redis.setEnabled(false);
+            redis.setStatus(ReadinessStatus.DISABLED);
+            redis.setMessage("Redis is optional. Set REDIS_URL or REDIS_ENABLED=true to use it.");
+            redis.setConfigDetails("Not connected");
+        } else {
+            redis.setConfigured(true);
+            redis.setEnabled(true);
+            try {
+                String pong = redisTemplate.getConnectionFactory() == null
+                        ? null
+                        : redisTemplate.getRequiredConnectionFactory().getConnection().ping();
+                boolean ok = pong != null && !pong.isBlank();
+                redis.setStatus(ok ? ReadinessStatus.HEALTHY : ReadinessStatus.DEGRADED);
+                redis.setMessage(ok ? "Connected — used for auth throttling and dashboard cache" : "Ping failed");
+                redis.setConfigDetails("StringRedisTemplate");
+            } catch (Exception e) {
+                redis.setStatus(ReadinessStatus.DEGRADED);
+                redis.setMessage("Redis enabled but not reachable");
+                redis.setConfigDetails("Ping failed");
+            }
+        }
         integrations.add(redis);
 
         return new IntegrationsResponse(integrations);
@@ -511,10 +541,25 @@ public class SettingsService {
                     break;
 
                 case "redis":
-                    result.setSuccess(false);
-                    result.setStatus(ReadinessStatus.UNKNOWN);
-                    result.setMessage("Redis is not used by this application. Status remains UNKNOWN / NOT USED.");
-                    result.setCheckType("NOT_USED");
+                    if (!redisEnabled || redisTemplate == null) {
+                        result.setSuccess(false);
+                        result.setStatus(ReadinessStatus.DISABLED);
+                        result.setMessage("Redis is not enabled. Set REDIS_URL on Railway or REDIS_ENABLED=true locally.");
+                        result.setCheckType("CONFIG");
+                    } else {
+                        try {
+                            String pong = redisTemplate.getRequiredConnectionFactory().getConnection().ping();
+                            result.setSuccess(pong != null);
+                            result.setStatus(result.isSuccess() ? ReadinessStatus.HEALTHY : ReadinessStatus.DEGRADED);
+                            result.setMessage(result.isSuccess() ? "CONNECTED — Redis ping ok" : "Redis ping failed");
+                            result.setCheckType("LIVE");
+                        } catch (Exception e) {
+                            result.setSuccess(false);
+                            result.setStatus(ReadinessStatus.DEGRADED);
+                            result.setMessage("Redis ping failed");
+                            result.setCheckType("LIVE");
+                        }
+                    }
                     break;
 
                 case "openai":
@@ -660,7 +705,15 @@ public class SettingsService {
     }
 
     private ReadinessStatus checkRedisStatus() {
-        return ReadinessStatus.UNKNOWN;
+        if (!redisEnabled || redisTemplate == null) {
+            return ReadinessStatus.DISABLED;
+        }
+        try {
+            String pong = redisTemplate.getRequiredConnectionFactory().getConnection().ping();
+            return pong != null ? ReadinessStatus.HEALTHY : ReadinessStatus.DEGRADED;
+        } catch (Exception e) {
+            return ReadinessStatus.DEGRADED;
+        }
     }
 
     private ReadinessStatus checkOpenAIStatus() {
