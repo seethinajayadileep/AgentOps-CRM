@@ -14,7 +14,8 @@ import java.util.Map;
 
 /**
  * Lightweight liveness endpoint for local checks and the marketing/API clients.
- * Railway uses {@code /actuator/health} as the deploy probe.
+ * Railway uses {@code /api/health} as the deploy probe (liveness).
+ * {@code /actuator/health} includes the database and is for diagnostics.
  */
 @RestController
 @RequestMapping("/api")

@@ -47,13 +47,12 @@ USER appuser
 EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-8080}/actuator/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=90s --retries=5 \
+  CMD curl -f http://localhost:${PORT:-8080}/api/health || exit 1
 
-# JVM settings for container
+# JVM settings for container (small Railway instances)
 ENV JAVA_OPTS="-XX:+UseContainerSupport \
-               -XX:MaxRAMPercentage=75.0 \
-               -XX:InitialRAMPercentage=50.0 \
+               -XX:MaxRAMPercentage=65.0 \
                -XX:+ExitOnOutOfMemoryError \
                -Djava.security.egd=file:/dev/./urandom"
 

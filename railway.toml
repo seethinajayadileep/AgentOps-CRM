@@ -6,8 +6,9 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-healthcheckPath = "/actuator/health"
-healthcheckTimeout = 100
+# Liveness only — /actuator/health also checks the DB and returns 503 during Flyway.
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 numReplicas = 1

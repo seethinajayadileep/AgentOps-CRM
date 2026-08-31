@@ -181,13 +181,13 @@ Stock Railway Postgres **does not** include pgvector. Flyway `V10__add_pgvector_
 2. **Root Directory:** `backend`
 3. Builder: Dockerfile (`backend/Dockerfile`). `SPRING_PROFILES_ACTIVE=prod` is set in the image and in `backend/railway.toml`.
 4. **Settings → Networking:** generate a public HTTPS domain (e.g. `https://agentops-crm-production.up.railway.app`).
-5. **Healthcheck path:** `/actuator/health` (already in `railway.toml`).
-6. Variables (Variables tab). Reference the pgvector service instead of pasting passwords:
+5. **Healthcheck path:** `/api/health` (already in `railway.toml`).
+6. Variables (Variables tab). Required for the replica to become healthy:
 
 | Variable | Value |
 |----------|--------|
 | `JWT_SECRET` | `openssl rand -base64 64` — required, no default in prod |
-| `DB_URL` | `jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}` |
+| `DATABASE_URL` or `DB_URL` | Link the pgvector service (variable reference) **or** set `DB_URL=jdbc:postgresql://HOST:PORT/DB` |
 | `DB_USER` | `${{Postgres.PGUSER}}` |
 | `DB_PASSWORD` | `${{Postgres.PGPASSWORD}}` |
 | `CORS_ALLOWED_ORIGINS` | Production frontend origin, e.g. `https://your-app.vercel.app` (preview hosts `https://*.vercel.app` are already allowed) |
@@ -203,6 +203,14 @@ Stock Railway Postgres **does not** include pgvector. Flyway `V10__add_pgvector_
 Cookies in prod are `Secure` + `SameSite=None` so the Vercel origin can receive them. The SPA also stores the JWT and sends `Authorization: Bearer`, which still works if the browser blocks third-party cookies.
 
 Do not commit `.env`. After the first successful migrate, `GET https://<railway>/api/health` should return `"version": "0.2.0"`.
+
+If Railway reports **1/1 replicas never became healthy** / `service unavailable`, the JVM never bound `PORT`. Open the **Deploy Logs** (not just the build log) and look for:
+
+- `JWT_SECRET must be set in production`
+- `Production database is not configured`
+- Flyway error about extension `vector` — use a **pgvector** Postgres, not stock Postgres
+
+Then set `JWT_SECRET`, link the database (so `DATABASE_URL` or `PGHOST` is present), and redeploy.
 
 ### C. Vercel — frontend
 

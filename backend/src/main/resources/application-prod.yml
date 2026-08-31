@@ -72,9 +72,15 @@ management:
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
   health:
+    db:
+      enabled: true
     redis:
       enabled: ${REDIS_HEALTH_ENABLED:false}
+    livenessstate:
+      enabled: true
 
 # CORS Configuration (production)
 # Always includes https://*.vercel.app. Add the production custom domain here too.
@@ -87,7 +93,7 @@ app:
     cookie-same-site: None
     seed-demo-user: ${AUTH_SEED_DEMO_USER:true}
 
-# No default — Railway must set JWT_SECRET or the process refuses to start.
+# No default — Railway must set JWT_SECRET or ProductionSecurityValidator refuses to start.
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:}
   expiration-ms: ${JWT_EXPIRATION:86400000}
