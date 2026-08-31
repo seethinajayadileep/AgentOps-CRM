@@ -77,7 +77,7 @@ AgentOps-CRM/
 
 - Java 21
 - Maven 3.9+
-- Node.js 22 (see `.nvmrc`)
+- Node.js 24 (see `.nvmrc`)
 - Docker Desktop (recommended for Postgres)
 
 ### 1. Database
@@ -215,7 +215,7 @@ Then set `JWT_SECRET`, link the database (so `DATABASE_URL` or `PGHOST` is prese
 ### C. Vercel — frontend
 
 1. [Import](https://vercel.com/new) the same GitHub repo.
-2. **Root Directory:** `frontend` (Framework Preset: Vite, Node 22).
+2. **Root Directory:** `frontend` (Framework Preset: Vite, Node 24).
 3. Environment variable (**Production**, and Preview if you use preview deploys):
 
 | Variable | Value |
