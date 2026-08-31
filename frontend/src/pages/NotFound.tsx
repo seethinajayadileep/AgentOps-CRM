@@ -5,7 +5,7 @@ export default function NotFound() {
   const navigate = useNavigate();
 
   return (
-    <div>
+    <div className="app-bg min-h-screen px-4 py-10">
       <PageHeader
         title="Page not found"
         subtitle="That address is not a page in AgentOps CRM. Nothing was changed."

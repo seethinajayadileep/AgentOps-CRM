@@ -9,36 +9,26 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Health check controller for monitoring system status.
- *
- * Endpoint: GET /api/health
- * API ID: API-001
- *
- * @author AgentOps Team
- * @version 0.1.0
+ * Lightweight liveness endpoint for local checks and the marketing/API clients.
+ * Railway uses {@code /actuator/health} as the deploy probe.
  */
 @RestController
 @RequestMapping("/api")
 public class HealthController {
 
-    /**
-     * Health check endpoint that returns system status.
-     *
-     * @return HealthResponse containing system and service status
-     */
     @GetMapping("/health")
     public ResponseEntity<HealthResponse> health() {
         HealthResponse response = new HealthResponse();
         response.setStatus("UP");
         response.setTimestamp(Instant.now().toString());
 
-        Map<String, ServiceStatus> services = new HashMap<>();
-        services.put("database", new ServiceStatus("UP", "Database connection established"));
-        services.put("redis", new ServiceStatus("UP", "Redis connection established"));
+        Map<String, ServiceStatus> services = new LinkedHashMap<>();
+        services.put("application", new ServiceStatus("UP", "AgentOps CRM API"));
+        services.put("redis", new ServiceStatus("DISABLED", "Redis is not required by this application"));
 
         response.setServices(services);
         response.setVersion(AppVersion.VALUE);

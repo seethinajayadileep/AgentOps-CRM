@@ -157,7 +157,7 @@ describe('Conversations search, filters, retry, and accessibility', () => {
     const user = userEvent.setup();
     const other = { ...qaConversation, id: 'c2', customerName: 'Other Customer' };
     vi.mocked(conversationsApi.getAllConversations).mockImplementation(async (filters) => {
-      const items = filters.search ? [qaConversation] : [qaConversation, other];
+      const items = filters?.search ? [qaConversation] : [qaConversation, other];
       return {
         items,
         pagination: { page: 0, size: 20, totalElements: items.length, totalPages: 1 },
@@ -213,7 +213,7 @@ describe('Conversations search, filters, retry, and accessibility', () => {
     const user = userEvent.setup();
     const other = { ...qaConversation, id: 'c2', customerName: 'Other Customer' };
     vi.mocked(conversationsApi.getAllConversations).mockImplementation(async (filters) => {
-      const items = filters.search ? [qaConversation] : [qaConversation, other];
+      const items = filters?.search ? [qaConversation] : [qaConversation, other];
       return {
         items,
         pagination: { page: 0, size: 20, totalElements: items.length, totalPages: 1 },

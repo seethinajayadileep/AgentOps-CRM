@@ -1,285 +1,257 @@
-# AgentOps CRM - Spring Boot Multi-Agent AI Platform
+# AgentOps CRM
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.2.0-blue)
 ![Java](https://img.shields.io/badge/Java-21-orange)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.5-green)
 ![React](https://img.shields.io/badge/React-18.2.0-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.2.2-blue)
 
-A production-style full-stack agentic AI CRM platform that automates customer interactions, lead qualification, and follow-ups using AI agents.
+Agentic revenue operations CRM: discover leads, crawl business knowledge, run grounded conversations, and keep humans in the loop for follow-ups and voice calls.
 
-## 🎯 Project Goals
+**Repo:** [seethinajayadileep/AgentOps-CRM](https://github.com/seethinajayadileep/AgentOps-CRM)
 
-1. **Web-Based Knowledge Base**: Automatically crawl business websites to build AI knowledge
-2. **RAG-Powered Chat**: Answer customer questions using only verified business knowledge
-3. **Intelligent Lead Qualification**: Automatically qualify leads from chat conversations
-4. **AI Voice Automation**: Make approved voice calls using Vapi
-5. **Daily Voice Reports**: Generate executive summaries with ElevenLabs
-6. **Lead Discovery**: Find potential leads using Apify
-7. **Complete Audit Trail**: Track every agent action for transparency
+Production hosting for this monorepo:
 
-## 🏗️ Architecture
+| Piece | Host | Root directory |
+|-------|------|----------------|
+| React + Vite SPA | [Vercel](https://vercel.com) | `frontend` |
+| Spring Boot API | [Railway](https://railway.app) | `backend` |
+| PostgreSQL + pgvector | Railway | pgvector template (not stock Postgres) |
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Frontend (React)                       │
-│  Dashboard | Businesses | Leads | Conversations | Voice     │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ REST API
-┌─────────────────────────▼───────────────────────────────────┐
-│                    Backend (Spring Boot)                     │
-│                                                               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  Controller  │  │   Service    │  │  Repository  │      │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
-│         │                 │                 │              │
-│  ┌──────▼─────────────────▼─────────────────▼───────┐     │
-│  │              Business Logic Layer                 │     │
-│  │  Agent Orchestrator | RAG Engine | Lead Qualifier│     │
-│  └──────────────────────────────────────────────────┘     │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-    ┌─────────────────────┼─────────────────────┐
-    │                     │                     │
-┌───▼────┐          ┌─────▼─────┐         ┌─────▼─────┐
-│PostgreSQL│         │  Redis    │         │   AI APIs  │
-└────────┘          └───────────┘         └───────────┘
-                                         Firecrawl|Vapi|
-                                         ElevenLabs|Apify
-```
+## What it does
 
-## 🛠️ Tech Stack
+- **Marketing site** at `/`, plus login and signup
+- **Workspace** (after sign-in): dashboard, businesses, leads, lead finder, conversations, voice calls, approvals, agent logs, settings
+- **Knowledge base:** Firecrawl site crawl → chunk → OpenAI embeddings → pgvector retrieval
+- **Approvals:** drafted follow-ups and outbound actions wait for a human decision
+- **Integrations:** OpenAI, Firecrawl, Apify, Vapi (each optional until you enable it)
 
-### Backend
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Java | 21 | Language |
-| Spring Boot | 3.2.5 | Application framework |
-| Spring Data JPA | 3.2.5 | Database ORM |
-| PostgreSQL | 16 | Primary database |
-| Redis | 7 | Cache & queue |
-| Flyway | 10.0+ | Database migrations |
-| Maven | 3.9+ | Build tool |
+Redis is **not used**. You do not need a Redis service on Railway.
 
-### Frontend
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| React | 18.2.0 | UI framework |
-| Vite | 5.2.0 | Build tool |
-| TypeScript | 5.2.2 | Type safety |
-| Tailwind CSS | 3.4.3 | Styling |
-| Axios | 1.6.8 | HTTP client |
-| React Router | 6.22.3 | Navigation |
+## Tech stack
 
-### External AI Tools
-| Tool | Purpose |
-|------|---------|
-| Firecrawl | Website crawling |
-| Vapi | AI voice calls |
-| ElevenLabs | Text-to-speech |
-| Apify | Lead discovery |
+| Layer | Stack |
+|-------|--------|
+| API | Java 21, Spring Boot 3.2.5, Spring Security (JWT), Spring Data JPA, Flyway |
+| App | React 18, Vite 5, TypeScript 5.2, Tailwind CSS 3.4, Axios, React Router 6 |
+| Data | PostgreSQL 16 with [pgvector](https://github.com/pgvector/pgvector) |
+| Auth | Email/password, httpOnly session cookie `agentcrm_session`, `Authorization: Bearer` |
 
-## 📦 Project Structure
+## Repository layout
 
 ```
-agentops-crm/
-├── backend/                 # Spring Boot backend
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/agentopscrm/
-│   │   │   │   ├── config/          # Configuration classes
-│   │   │   │   ├── controller/      # REST controllers
-│   │   │   │   ├── dto/             # Data transfer objects
-│   │   │   │   ├── entity/          # JPA entities
-│   │   │   │   ├── repository/      # JPA repositories
-│   │   │   │   ├── service/         # Business logic
-│   │   │   │   ├── exception/       # Custom exceptions
-│   │   │   │   ├── client/          # External API clients
-│   │   │   │   ├── agent/           # Agent orchestration
-│   │   │   │   ├── rag/             # RAG implementation
-│   │   │   │   ├── security/        # Security & auth
-│   │   │   │   └── util/            # Utilities
-│   │   │   └── resources/
-│   │   │       ├── prompts/         # AI prompt templates
-│   │   │       └── migration/       # Flyway migrations
-│   │   └── test/
-│   └── pom.xml
-├── frontend/                # React + Vite frontend
-│   ├── src/
-│   │   ├── api/             # API client functions
-│   │   ├── components/      # React components
-│   │   ├── pages/           # Page components
-│   │   ├── layouts/         # Layout components
-│   │   ├── hooks/           # Custom hooks
-│   │   ├── types/           # TypeScript types
-│   │   └── utils/           # Utility functions
-│   ├── package.json
-│   └── vite.config.ts
-├── docs/                    # Documentation
-│   ├── PROJECT_SPEC.md
-│   ├── FEATURE_CHECKLIST.md
-│   ├── API_CONTRACT.md
-│   ├── CHANGELOG.md
-│   ├── DECISIONS.md
-│   ├── FILE_MAP.md
-│   ├── DEBUG_LOG.md
-│   ├── TEST_PLAN.md
-│   ├── ENVIRONMENT.md
-│   └── ROADMAP.md
-├── docker/                  # Docker configurations
-│   └── docker-compose.yml
-├── README.md
-└── .gitignore
+AgentOps-CRM/
+├── backend/                  Spring Boot API (Railway)
+│   ├── Dockerfile
+│   ├── railway.toml
+│   ├── pom.xml
+│   └── src/main/
+│       ├── java/com/agentopscrm/
+│       │   ├── agent/        Qualification and evaluation agents
+│       │   ├── client/       Firecrawl, Vapi, Apify
+│       │   ├── config/       CORS, security
+│       │   ├── controller/   REST
+│       │   ├── security/     JWT filter
+│       │   └── service/
+│       └── resources/
+│           ├── application.yml
+│           ├── application-prod.yml
+│           └── migration/    Flyway (includes pgvector)
+├── frontend/                 Vite SPA (Vercel)
+│   ├── vercel.json
+│   └── src/
+│       ├── api/              Axios client (withCredentials)
+│       ├── auth/             Session context
+│       ├── components/
+│       ├── pages/            Marketing, auth, and workspace
+│       └── types/
+├── docker/docker-compose.yml Local Postgres (port 5433) + optional Redis
+├── vercel.json               Fallback if Vercel root is the repo
+├── Dockerfile                Fallback if Railway root is the repo
+└── README.md
 ```
 
-## 🚀 Getting Started
+## Local development
 
 ### Prerequisites
 
-- **Java 21** or higher
-- **Maven 3.9** or higher
-- **Node.js 22** (Vercel / frontend)
-- **Docker & Docker Compose** (for PostgreSQL and Redis)
-- **PostgreSQL 16** or higher
-- **Redis 7** or higher
+- Java 21
+- Maven 3.9+
+- Node.js 22 (see `.nvmrc`)
+- Docker Desktop (recommended for Postgres)
 
-### 1. Clone the Repository
+### 1. Database
 
 ```bash
-git clone <repository-url>
-cd agentops-crm
+docker compose -f docker/docker-compose.yml up -d postgres
 ```
 
-### 2. Start Infrastructure
+This starts **pgvector/pgvector:0.7.4-pg16** as `agentops-postgres` on **host port 5433** (5432 is often taken by a local Postgres).
+
+You can skip the Compose Redis service. The API does not connect to Redis.
+
+### 2. Backend
 
 ```bash
-cd docker
-docker-compose up -d
-```
+cp backend/.env.example backend/.env
+# Set OPENAI_API_KEY (and other keys you want to exercise).
+# JWT_SECRET can stay as the local placeholder on the dev profile only.
 
-This will start:
-- PostgreSQL on port 5433 (5432 conflicts with local PostgreSQL on macOS)
-- Redis on port 6379
-
-### 3. Configure Environment Variables
-
-Create `.env` files:
-
-**Backend (.env):**
-```bash
-# Database
-DB_HOST=localhost
-DB_PORT=5433
-DB_NAME=agentops_crm
-DB_USER=postgres
-DB_PASSWORD=postgres
-
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# External Tools (Required for crawling)
-FIRECRAWL_API_KEY=fc-...
-
-# API Keys (add as needed)
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-VAPI_API_KEY=vapi-...
-ELEVENLABS_API_KEY=xi-...
-APIFY_API_TOKEN=at-...
-```
-
-**Frontend (.env):**
-```bash
-VITE_API_BASE_URL=http://localhost:8080/api
-VITE_APP_NAME=AgentOps CRM
-```
-
-### 4. Run Backend
-
-```bash
 cd backend
-mvn clean install
+export SPRING_PROFILES_ACTIVE=dev
+export DB_URL=jdbc:postgresql://127.0.0.1:5433/agentops_crm
+export DB_USER=postgres
+export DB_PASSWORD=postgres
 mvn spring-boot:run
 ```
 
-Backend will be available at `http://localhost:8080`
+API: `http://localhost:8080`
 
-### 5. Run Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend will be available at `http://localhost:5173`
-
-### 6. Verify Setup
-
-Check backend health:
 ```bash
 curl http://localhost:8080/api/health
 ```
 
-Expected response:
+Example:
+
 ```json
 {
   "status": "UP",
-  "timestamp": "2026-07-01T12:00:00Z",
+  "timestamp": "2026-08-31T10:30:00Z",
   "services": {
-    "database": "UP",
-    "redis": "UP"
+    "application": { "status": "UP", "message": "AgentOps CRM API" },
+    "redis": { "status": "DISABLED", "message": "Redis is not required by this application" }
   },
-  "version": "0.1.0"
+  "version": "0.2.0"
 }
 ```
 
-## ☁️ Deploy (Vercel frontend + Railway backend)
+Deploy probes should use `GET /actuator/health`.
 
-GitHub auto-deploy is already wired to [AgentOps-CRM](https://github.com/seethinajayadileep/AgentOps-CRM). This is a monorepo:
-
-| Host | Root directory | Config |
-|------|----------------|--------|
-| **Vercel** | `frontend` (or repo root + `vercel.json`) | Vite build → `dist` |
-| **Railway** | `backend` (or repo root + `Dockerfile`) | Java 21 Docker image |
-
-### Vercel
-
-Set at **build** time (Vite inlines it):
-
-- `VITE_API_BASE_URL` — Railway public URL **including** `/api`  
-  Example: `https://your-service.up.railway.app/api`
-
-### Railway
-
-- `SPRING_PROFILES_ACTIVE=prod`
-- `PORT` — injected by Railway
-- Database: set `DB_URL` (`jdbc:postgresql://...`) or link Railway Postgres (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`)
-- `CORS_ALLOWED_ORIGINS` — production Vercel origin (preview URLs `https://*.vercel.app` are allowed automatically)
-- `PUBLIC_BACKEND_URL` — Railway public HTTPS origin
-- Provider keys: `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `VAPI_*`, `APIFY_*` as used locally
-
-Postgres needs the **pgvector** extension. Do not commit `.env` files; use `frontend/.env.example` and `backend/.env.example`.
-
-## 🧪 Testing
+### 3. Frontend
 
 ```bash
-# Backend tests
-cd backend
-mvn test
-
-# Frontend tests
 cd frontend
-npm test
-
-# E2E tests
-npm run test:e2e
+npm ci
+npm run dev
 ```
 
+Vite: `http://localhost:5173`. In development, `/api` is proxied to `http://localhost:8080`. Do not point local Vite at a remote Railway URL.
 
+### Sample account
 
-## 👥 Team
+On first boot the API seeds:
 
-- **Backend**: Java Spring Boot
-- **Frontend**: React + Vite + TypeScript
+| Field | Value |
+|-------|--------|
+| Email | `demo@agentcrm.app` |
+| Password | `Demo@123` |
+
+Disable later with `AUTH_SEED_DEMO_USER=false`. Sign up at `/signup` for a real account.
+
+### Tests
+
+```bash
+cd backend && mvn test
+cd frontend && npm test
+cd frontend && npm run test:e2e   # needs API + Vite running
+```
+
+---
+
+## Deploy: Railway backend + Vercel frontend
+
+Push to GitHub, then wire each host to this repository. Set **Root Directory** as in the table above so the nested `Dockerfile` / `vercel.json` are used.
+
+### A. Railway — Postgres with pgvector
+
+Stock Railway Postgres **does not** include pgvector. Flyway `V10__add_pgvector_support.sql` runs `CREATE EXTENSION vector` and will fail without it.
+
+1. In the same Railway project, deploy a **Postgres + pgvector** template ([Railway pgvector template](https://railway.com/deploy/postgres-with-pgvector-engine)).
+2. In a query console, run once if the template did not already:
+
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS vector;
+   ```
+
+3. Use a **fresh empty database**. Do not set Flyway `baseline-on-migrate` in production.
+
+### B. Railway — API service
+
+1. **New service → GitHub** → this repo.
+2. **Root Directory:** `backend`
+3. Builder: Dockerfile (`backend/Dockerfile`). `SPRING_PROFILES_ACTIVE=prod` is set in the image and in `backend/railway.toml`.
+4. **Settings → Networking:** generate a public HTTPS domain (e.g. `https://agentops-crm-production.up.railway.app`).
+5. **Healthcheck path:** `/actuator/health` (already in `railway.toml`).
+6. Variables (Variables tab). Reference the pgvector service instead of pasting passwords:
+
+| Variable | Value |
+|----------|--------|
+| `JWT_SECRET` | `openssl rand -base64 64` — required, no default in prod |
+| `DB_URL` | `jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}` |
+| `DB_USER` | `${{Postgres.PGUSER}}` |
+| `DB_PASSWORD` | `${{Postgres.PGPASSWORD}}` |
+| `CORS_ALLOWED_ORIGINS` | Production frontend origin, e.g. `https://your-app.vercel.app` (preview hosts `https://*.vercel.app` are already allowed) |
+| `PUBLIC_BACKEND_URL` | Public Railway HTTPS origin, **no trailing slash** |
+| `OPENAI_API_KEY` | Required for embeddings and RAG answers |
+| `FIRECRAWL_API_KEY` | Optional until you crawl sites |
+| `APIFY_ENABLED` / `APIFY_API_TOKEN` | Optional until Lead Finder |
+| `VAPI_ENABLED` / `VAPI_API_KEY` / `VAPI_ASSISTANT_ID` / `VAPI_PHONE_NUMBER_ID` / `VAPI_WEBHOOK_SECRET` | Optional until voice |
+| `AUTH_SEED_DEMO_USER` | `true` to keep the demo login; `false` otherwise |
+
+`PORT` is injected by Railway. If the database service is not named `Postgres`, use Railway’s variable-reference picker so the `${{ServiceName.PGHOST}}` names match.
+
+Cookies in prod are `Secure` + `SameSite=None` so the Vercel origin can receive them. The SPA also stores the JWT and sends `Authorization: Bearer`, which still works if the browser blocks third-party cookies.
+
+Do not commit `.env`. After the first successful migrate, `GET https://<railway>/api/health` should return `"version": "0.2.0"`.
+
+### C. Vercel — frontend
+
+1. [Import](https://vercel.com/new) the same GitHub repo.
+2. **Root Directory:** `frontend` (Framework Preset: Vite, Node 22).
+3. Environment variable (**Production**, and Preview if you use preview deploys):
+
+| Variable | Value |
+|----------|--------|
+| `VITE_API_BASE_URL` | Railway public URL **including** `/api`, e.g. `https://your-service.up.railway.app/api` |
+
+Vite inlines `VITE_*` at **build** time. Change the URL → redeploy the frontend.
+
+4. Deploy. Open the Vercel URL, sign in, and confirm the dashboard loads live data.
+
+If you instead leave Vercel root at the repository, the root `vercel.json` builds `frontend` and publishes `frontend/dist`. Prefer **Root Directory = `frontend`**.
+
+### D. After both are live
+
+1. Put the exact Vercel production origin in Railway `CORS_ALLOWED_ORIGINS` (comma-separated if you also have a custom domain).
+2. Confirm login from the Vercel origin succeeds (`POST /api/auth/login` is 200, then `/dashboard` shows counts).
+3. Point Vapi webhooks at `https://<railway>/api/webhooks/vapi` when you enable voice.
+4. Rotate any key that ever lived in git. `JWT_SECRET` must not be the local placeholder; prod refuses to boot if it is.
+
+---
+
+## Environment reference
+
+Templates: `backend/.env.example`, `frontend/.env.example`.
+
+| Variable | Where | Notes |
+|----------|--------|--------|
+| `SPRING_PROFILES_ACTIVE` | Railway | `prod` |
+| `JWT_SECRET` | Railway | Required in prod; min 32 characters |
+| `DB_URL` / `DB_USER` / `DB_PASSWORD` | Railway | `jdbc:postgresql://...` (not `postgresql://`) |
+| `CORS_ALLOWED_ORIGINS` | Railway | Vercel production (and custom) origins |
+| `PUBLIC_BACKEND_URL` | Railway | Public API origin for webhook URLs |
+| `AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SAMESITE` | Local | Prod profile forces `true` / `None` |
+| `SHOWCASE_EXTERNAL_ACTIONS_DISABLED` | Either | Default `false` — operators can approve, search, call, delete |
+| `VITE_API_BASE_URL` | Vercel | Must include `/api` |
+
+## Auth and security notes
+
+- Public: `/api/auth/**`, `/api/health`, `/actuator/**`, `/api/webhooks/**`
+- Everything else under `/api/**` requires a valid JWT
+- CORS uses origin **patterns** with credentials (never `*` + cookies)
+- Session cookie: `agentcrm_session`, path `/`, httpOnly
+- Do not log or commit secrets
+
+## License
+
+Private / unlicensed unless otherwise stated in the repository settings.

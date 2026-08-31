@@ -1,5 +1,6 @@
 # Used when the Railway service root is the monorepo.
 # Prefer Root Directory = backend (then backend/railway.toml + backend/Dockerfile apply).
+
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
@@ -10,3 +11,6 @@ healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 numReplicas = 1
+
+[env]
+SPRING_PROFILES_ACTIVE = "prod"

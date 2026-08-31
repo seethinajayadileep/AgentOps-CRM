@@ -24,6 +24,7 @@ export const API_BASE_URL = baseURL;
 export const apiClient = axios.create({
   baseURL,
   timeout: 30000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -33,7 +34,7 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     // Add auth token if available
-    const token = localStorage.getItem('auth_token');
+    const token = typeof localStorage === 'undefined' ? null : localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -67,6 +68,15 @@ apiClient.interceptors.response.use(
       else if (data.message) {
         errorMessage = data.message;
       }
+      else if (data.error === 'SHOWCASE_ACTION_DISABLED') {
+        errorMessage = data.message || 'This action is currently disabled.';
+      }
+      else if (data.error === 'EMAIL_ALREADY_EXISTS') {
+        errorMessage = data.message || 'An account with this email already exists.';
+      }
+      else if (data.error === 'INVALID_CREDENTIALS') {
+        errorMessage = data.message || 'Email or password is incorrect.';
+      }
       // Handle BusinessAlreadyExistsException
       else if (data.error === 'BUSINESS_ALREADY_EXISTS') {
         errorMessage = 'A business with this website URL already exists';
@@ -88,6 +98,13 @@ apiClient.interceptors.response.use(
       isValidationError: error.response?.data?.error === 'VALIDATION_ERROR',
       validationErrors: error.response?.data?.errors || {},
     };
+
+    const status = error.response?.status;
+    const requestUrl = String(error.config?.url || '');
+    const isAuthRequest = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/signup') || requestUrl.includes('/auth/me');
+    if (status === 401 && !isAuthRequest) {
+      window.dispatchEvent(new Event('auth:unauthorized'));
+    }
 
     return Promise.reject(customError);
   }

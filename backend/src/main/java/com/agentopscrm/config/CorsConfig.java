@@ -6,25 +6,20 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 /**
- * CORS Configuration
- * 
- * Environment-controlled CORS origins for development and production.
- * 
- * Development: Includes localhost origins automatically
- * Production: Uses CORS_ALLOWED_ORIGINS environment variable
- * 
- * Security: Does NOT use wildcard (*) with credentials
- * 
- * @author AgentOps Team
- * @version 1.0.0
+ * CORS for the Vite SPA. Spring Security {@code cors(Customizer.withDefaults())}
+ * picks up this {@link CorsConfigurationSource} so preflight and credentialed
+ * requests from Vercel to Railway both receive the right headers.
+ *
+ * Credentials are required (session cookie + Authorization). Origins must be
+ * explicit or patterns — never {@code *} with credentials.
  */
 @Configuration
 public class CorsConfig {
@@ -38,68 +33,40 @@ public class CorsConfig {
     private String activeProfile;
 
     @Bean
-    public CorsFilter corsFilter() {
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-
-        // Allow credentials (cookies, authorization headers)
         config.setAllowCredentials(true);
 
-        // Build allowed origins list
         List<String> allowedOrigins = buildAllowedOrigins();
         config.setAllowedOriginPatterns(allowedOrigins);
+        log.info("CORS allowed origin patterns: {}", allowedOrigins);
 
-        log.info("CORS Configuration initialized with {} allowed origins", allowedOrigins.size());
-        allowedOrigins.forEach(origin -> log.debug("CORS allowed origin: {}", origin));
-
-        // Allowed HTTP methods
-        config.setAllowedMethods(Arrays.asList(
-            "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"
-        ));
-
-        // Allowed headers
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList(
-            "Authorization",
-            "Content-Type",
-            "Accept",
-            "Origin",
-            "Access-Control-Request-Method",
-            "Access-Control-Request-Headers",
-            "X-Requested-With"
-        ));
-
-        // Expose headers
-        config.setExposedHeaders(Arrays.asList(
-            "Authorization",
-            "Content-Type",
-            "X-Total-Count"
-        ));
-
-        // Pre-flight cache duration (1 hour)
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Origin",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers",
+                "X-Requested-With"));
+        config.setExposedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Total-Count"));
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
-
-        return new CorsFilter(source);
+        return source;
     }
 
-    /**
-     * Build allowed origins list based on environment
-     * 
-     * Development: Includes localhost automatically
-     * Production: Uses CORS_ALLOWED_ORIGINS environment variable
-     */
-    private List<String> buildAllowedOrigins() {
+    List<String> buildAllowedOrigins() {
         List<String> origins = new ArrayList<>();
 
-        // Add environment-configured origins (comma-separated)
         if (corsAllowedOrigins != null && !corsAllowedOrigins.isEmpty()) {
-            String[] configuredOrigins = corsAllowedOrigins.split(",");
-            for (String origin : configuredOrigins) {
+            for (String origin : corsAllowedOrigins.split(",")) {
                 String trimmed = origin.trim();
                 if (!trimmed.isEmpty()) {
                     origins.add(trimmed);
-                }  
+                }
             }
         }
 
@@ -111,12 +78,11 @@ public class CorsConfig {
             origins.add("http://localhost:3000");
             origins.add("http://127.0.0.1:3000");
         } else {
-            // Vercel production and preview URLs
             origins.add("https://*.vercel.app");
         }
 
         if (origins.isEmpty()) {
-            log.warn("No CORS origins configured - defaulting to localhost (NOT safe for production!)");
+            log.warn("No CORS origins configured — defaulting to local Vite. Set CORS_ALLOWED_ORIGINS in production.");
             origins.add("http://localhost:5173");
             origins.add("http://localhost:3000");
         }

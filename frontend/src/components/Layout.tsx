@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import ErrorBoundary from './ErrorBoundary';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /**
  * Main layout: fixed sidebar, utility header, and a 1200px content column.
@@ -47,6 +48,9 @@ export default function Layout() {
     }
   };
 
+  const pageTitle = getPageTitle();
+  useDocumentTitle(pageTitle === 'AgentOps CRM' ? pageTitle : `${pageTitle} · AgentOps CRM`);
+
   return (
     <div className="app-bg flex h-screen overflow-hidden">
       <a href="#main-content" className="skip-link">
@@ -70,7 +74,7 @@ export default function Layout() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header
-          title={getPageTitle()}
+          title={pageTitle}
           navOpen={navOpen}
           onToggleNav={() => setNavOpen((open) => !open)}
         />

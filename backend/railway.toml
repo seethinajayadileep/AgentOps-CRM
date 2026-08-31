@@ -1,11 +1,11 @@
 # AgentOps CRM - Railway Deployment Configuration
+# Set the service Root Directory to `backend`.
 
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = ""  # Uses Dockerfile ENTRYPOINT
 healthcheckPath = "/actuator/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
@@ -13,5 +13,4 @@ restartPolicyMaxRetries = 10
 numReplicas = 1
 
 [env]
-# These should be set in Railway dashboard, not here
-# PORT is automatically injected by Railway
+SPRING_PROFILES_ACTIVE = "prod"

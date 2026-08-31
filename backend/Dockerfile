@@ -57,7 +57,8 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
                -XX:+ExitOnOutOfMemoryError \
                -Djava.security.egd=file:/dev/./urandom"
 
-# Graceful shutdown timeout (30 seconds)
+# Production profile unless the host explicitly overrides it
+ENV SPRING_PROFILES_ACTIVE=prod
 ENV SERVER_SHUTDOWN=graceful
 ENV SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE=30s
 

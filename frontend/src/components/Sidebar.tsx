@@ -31,7 +31,7 @@ const navItems = [
 ];
 
 /**
- * Fixed sidebar with a 3px navy active indicator and 44px touch targets.
+ * Fixed sidebar with a 3px primary-blue active indicator and 44px touch targets.
  */
 export default function Sidebar({ currentPath, open = false, onClose }: SidebarProps) {
   const isActivePath = (path: string) =>
@@ -41,17 +41,20 @@ export default function Sidebar({ currentPath, open = false, onClose }: SidebarP
     <aside
       id="app-sidebar"
       className={`
-        fixed inset-y-0 left-0 z-40 flex w-64 flex-shrink-0 flex-col border-r border-frost bg-snow shadow-sidebar
+        fixed inset-y-0 left-0 z-40 flex w-64 flex-shrink-0 flex-col border-r border-frost shadow-sidebar
         transition-transform duration-200 lg:static lg:translate-x-0
         ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}
+      style={{ backgroundColor: 'var(--app-sidebar)' }}
       aria-label="Primary"
     >
       <div className="border-b border-frost px-6 py-6">
-        <p className="text-[11px] font-semibold uppercase tracking-classic text-copy">AgentOps</p>
-        <p className="mt-1 font-serif text-[28px] leading-none text-ink">CRM</p>
+        <Link to="/dashboard" aria-label="AgentOps CRM" className="inline-block">
+          <span className="block text-[11px] font-semibold uppercase tracking-classic text-copy">AGENTOPS</span>
+          <span className="mt-1 block font-serif text-[28px] leading-none text-ink">CRM</span>
+        </Link>
         <span className="mt-2 block h-0.5 w-8 bg-gold" aria-hidden="true" />
-        <p className="mt-2 text-sm font-medium text-copy">Multi-Agent AI Platform</p>
+        <p className="mt-2 text-sm font-medium text-copy">Agentic revenue operations platform</p>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Main">
@@ -79,7 +82,7 @@ export default function Sidebar({ currentPath, open = false, onClose }: SidebarP
                   <Icon
                     size={18}
                     strokeWidth={isActive ? 2 : 1.75}
-                    className={isActive ? 'text-navy' : 'text-copy group-hover:text-navy'}
+                    className={isActive ? 'text-[var(--primary)]' : 'text-copy group-hover:text-navy'}
                     aria-hidden="true"
                   />
                   <span>{item.label}</span>
@@ -92,7 +95,7 @@ export default function Sidebar({ currentPath, open = false, onClose }: SidebarP
 
       <div className="border-t border-frost px-6 py-4">
         <p className="text-[11px] font-semibold uppercase tracking-classic text-copy">Version {APP_VERSION}</p>
-        <p className="mt-1 text-xs text-copy">© 2026 AgentOps</p>
+        <p className="mt-1 text-xs text-copy">© 2026 AgentOps CRM</p>
       </div>
     </aside>
   );

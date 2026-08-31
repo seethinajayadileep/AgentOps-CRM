@@ -21,6 +21,18 @@ spring:
     locations: classpath:migration
     baseline-on-migrate: true
 
+app:
+  security:
+    enabled: false
+  showcase:
+    external-actions-disabled: false
+  auth:
+    seed-demo-user: false
+
+jwt:
+  secret: test-jwt-secret-for-unit-tests-only
+  expiration-ms: 3600000
+
 # Test-specific logging
 logging:
   level:

@@ -3,6 +3,12 @@
 spring:
   application:
     name: agentops-crm
+  # Redis is unused. Auto-config is excluded so Railway can start without Redis.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
   # Profiles - NO DEFAULT (must be set via SPRING_PROFILES_ACTIVE environment variable)
   # profiles:
@@ -103,6 +109,21 @@ vapi:
 # Application Public URL (used for webhook URLs, etc.)
 app:
   public-base-url: ${PUBLIC_BACKEND_URL:http://localhost:8080}
+  security:
+    enabled: ${APP_SECURITY_ENABLED:true}
+  showcase:
+    # Optional kill switch. Product default is off so operators can approve, search, call, and delete.
+    external-actions-disabled: ${SHOWCASE_EXTERNAL_ACTIONS_DISABLED:false}
+  auth:
+    cookie-name: agentcrm_session
+    cookie-secure: ${AUTH_COOKIE_SECURE:false}
+    cookie-same-site: ${AUTH_COOKIE_SAMESITE:Lax}
+    seed-demo-user: ${AUTH_SEED_DEMO_USER:true}
+    demo-password: ${AUTH_DEMO_PASSWORD:Demo@123}
+
+jwt:
+  secret: ${JWT_SECRET:change-this-demo-secret-to-a-long-random-value}
+  expiration-ms: ${JWT_EXPIRATION:86400000}
 
 # Knowledge Base async build job configuration (Bug 2 fix)
 kb:

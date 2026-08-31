@@ -3,11 +3,20 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 import Layout from './components/Layout';
+import { AuthProvider } from './auth/AuthContext';
 import { APP_VERSION } from './config/version';
 import packageJson from '../package.json';
 
 vi.mock('./api/approvalsApi', () => ({
   getAllApprovals: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('./api/authApi', () => ({
+  TOKEN_STORAGE_KEY: 'auth_token',
+  authApi: {
+    me: vi.fn().mockRejectedValue(new Error('unauthenticated')),
+    logout: vi.fn(),
+  },
 }));
 
 describe('404 routing', () => {
@@ -24,7 +33,9 @@ describe('layout accessibility', () => {
   it('keeps the skip link and mobile navigation control', () => {
     render(
       <MemoryRouter>
-        <Layout />
+        <AuthProvider>
+          <Layout />
+        </AuthProvider>
       </MemoryRouter>
     );
     expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute(

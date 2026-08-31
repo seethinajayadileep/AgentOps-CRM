@@ -3,6 +3,16 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LeadFinder from './LeadFinder';
 
+vi.mock('../auth/AuthContext', () => ({
+  useAuth: () => ({
+    status: 'authenticated',
+    user: { externalActionsDisabled: true },
+    login: vi.fn(),
+    signup: vi.fn(),
+    logout: vi.fn(),
+  }),
+}));
+
 vi.mock('../api/leadFinderApi', () => ({
   leadFinderApi: {
     getConfig: vi.fn(),
@@ -34,6 +44,8 @@ describe('Lead Finder a11y and sanitized errors', () => {
         <LeadFinder />
       </MemoryRouter>
     );
+    expect(await screen.findByLabelText('Search Name *')).toBeInTheDocument();
+    expect(screen.getByLabelText('Industry')).toBeInTheDocument();
     expect(await screen.findByLabelText('Max Results')).toBeInTheDocument();
   });
 

@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Bell, Menu, User, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Bell, LogOut, Menu, User, X } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import GlobalSearch from './GlobalSearch';
 import { getAllApprovals } from '../api/approvalsApi';
 import { ApprovalStatus } from '../types/approval';
+import { useAuth } from '../auth/AuthContext';
 
 interface HeaderProps {
   title: string;
@@ -11,7 +12,19 @@ interface HeaderProps {
   onToggleNav?: () => void;
 }
 
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || 'U';
+}
+
 export default function Header({ title, navOpen = false, onToggleNav }: HeaderProps) {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const displayName = user?.fullName || 'Signed in';
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -68,7 +81,10 @@ export default function Header({ title, navOpen = false, onToggleNav }: HeaderPr
           >
             {navOpen ? <X size={20} strokeWidth={1.75} /> : <Menu size={20} strokeWidth={1.75} />}
           </button>
-          <p className="truncate font-serif text-xl text-ink lg:hidden">CRM</p>
+          <span className="lg:hidden" role="img" aria-label="AgentOps CRM">
+            <span className="block text-[10px] font-semibold uppercase tracking-classic text-copy">AGENTOPS</span>
+            <span className="block font-serif text-lg leading-none text-ink">CRM</span>
+          </span>
           <span className="sr-only">Current page: {title}</span>
         </div>
 
@@ -123,7 +139,7 @@ export default function Header({ title, navOpen = false, onToggleNav }: HeaderPr
             <button
               type="button"
               className="flex items-center gap-2 border border-frost p-0 hover:bg-pale-navy"
-              aria-label="Account menu for Alex Drake"
+              aria-label={`Account menu for ${displayName}`}
               aria-expanded={profileOpen}
               aria-controls={profileId}
               aria-haspopup="menu"
@@ -137,9 +153,9 @@ export default function Header({ title, navOpen = false, onToggleNav }: HeaderPr
                 style={{ backgroundColor: '#243B53', color: '#FFFEFC' }}
                 aria-hidden="true"
               >
-                AD
+                {initials(displayName)}
               </span>
-              <span className="hidden pr-3 text-sm font-medium text-ink sm:inline">Alex Drake</span>
+              <span className="hidden pr-3 text-sm font-medium text-ink sm:inline">{displayName}</span>
             </button>
             {profileOpen && (
               <div
@@ -149,7 +165,7 @@ export default function Header({ title, navOpen = false, onToggleNav }: HeaderPr
                 className="absolute right-0 z-50 mt-2 w-56 border border-frost bg-snow py-2 shadow-classic"
               >
                 <p className="px-3 py-1 text-xs uppercase tracking-classic text-slate">Signed in</p>
-                <p className="px-3 pb-2 text-sm font-medium text-ink">Alex Drake</p>
+                <p className="px-3 pb-2 text-sm font-medium text-ink">{displayName}</p>
                 <Link
                   role="menuitem"
                   to="/settings"
@@ -159,6 +175,19 @@ export default function Header({ title, navOpen = false, onToggleNav }: HeaderPr
                   <User size={14} aria-hidden="true" />
                   Settings
                 </Link>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-pale-navy"
+                  onClick={async () => {
+                    setProfileOpen(false);
+                    await logout();
+                    navigate('/login', { replace: true });
+                  }}
+                >
+                  <LogOut size={14} aria-hidden="true" />
+                  Log out
+                </button>
               </div>
             )}
           </div>

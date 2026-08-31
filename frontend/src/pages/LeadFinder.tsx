@@ -119,14 +119,16 @@ export default function LeadFinder() {
         <div className="mb-6 rounded-sm border border-frost bg-mist p-4 text-ink">{success}</div>
       )}
 
-      {/* Search form */}
       <Card className="mb-6 p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <h2 className="text-lg font-semibold text-ink">New Search</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="label-dark">Search Name *</label>
+              <label htmlFor="lead-finder-search-name" className="label-dark">
+                Search Name *
+              </label>
               <input
+                id="lead-finder-search-name"
                 type="text"
                 value={form.searchName}
                 onChange={(e) => handleChange('searchName', e.target.value)}
@@ -135,8 +137,11 @@ export default function LeadFinder() {
               />
             </div>
             <div>
-              <label className="label-dark">Industry</label>
+              <label htmlFor="lead-finder-industry" className="label-dark">
+                Industry
+              </label>
               <input
+                id="lead-finder-industry"
                 type="text"
                 value={form.industry}
                 onChange={(e) => handleChange('industry', e.target.value)}
@@ -145,8 +150,11 @@ export default function LeadFinder() {
               />
             </div>
             <div>
-              <label className="label-dark">Location</label>
+              <label htmlFor="lead-finder-location" className="label-dark">
+                Location
+              </label>
               <input
+                id="lead-finder-location"
                 type="text"
                 value={form.location}
                 onChange={(e) => handleChange('location', e.target.value)}
@@ -155,8 +163,11 @@ export default function LeadFinder() {
               />
             </div>
             <div>
-              <label className="label-dark">Keywords</label>
+              <label htmlFor="lead-finder-keywords" className="label-dark">
+                Keywords
+              </label>
               <input
+                id="lead-finder-keywords"
                 type="text"
                 value={form.keywords}
                 onChange={(e) => handleChange('keywords', e.target.value)}

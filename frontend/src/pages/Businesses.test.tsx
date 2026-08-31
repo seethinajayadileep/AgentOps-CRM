@@ -4,6 +4,16 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Businesses from './Businesses';
 
+vi.mock('../auth/AuthContext', () => ({
+  useAuth: () => ({
+    status: 'authenticated',
+    user: { externalActionsDisabled: true },
+    login: vi.fn(),
+    signup: vi.fn(),
+    logout: vi.fn(),
+  }),
+}));
+
 vi.mock('../api/business', () => ({
   businessApi: {
     getAllBusinesses: vi.fn(),

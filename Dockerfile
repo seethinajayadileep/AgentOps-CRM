@@ -29,5 +29,6 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
                -XX:InitialRAMPercentage=50.0 \
                -XX:+ExitOnOutOfMemoryError \
                -Djava.security.egd=file:/dev/./urandom"
+ENV SPRING_PROFILES_ACTIVE=prod
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
