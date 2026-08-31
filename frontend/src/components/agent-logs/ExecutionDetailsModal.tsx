@@ -4,6 +4,7 @@ import { AgentLog, AgentActionStatus } from '../../types/agentLog';
 import StatusBadge from '../ui/StatusBadge';
 import Modal from '../ui/Modal';
 import { Link } from 'react-router-dom';
+import { formatServerDateTime } from '../../util/serverDate';
 
 /**
   * Modal for displaying agent execution details.
@@ -28,7 +29,7 @@ const ExecutionDetailsModal: React.FC<ExecutionDetailsModalProps> = ({ log, onCl
   };
 
   const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleString('en-US', {
+    return formatServerDateTime(timestamp, 'en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

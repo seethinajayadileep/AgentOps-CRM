@@ -18,6 +18,7 @@ import type {
   ConversationMessage,
   ConversationSummary,
 } from '../types/conversation';
+import { formatRelativeTime, formatServerDateTime } from '../util/serverDate';
 
 /**
   * Conversations admin page - Intercom-style operational inbox.
@@ -228,21 +229,6 @@ export default function Conversations() {
     setTypedSearch('');
     setSearchParams({}, { replace: true });
     void loadConversations(false, 0, false, { search: null, status: null });
-  };
-
-  const formatRelativeTime = (dateStr?: string): string => {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
   };
 
   const filtersActive = Boolean(search || statusFilter || hasInvalidStatus);
@@ -530,7 +516,7 @@ export default function Conversations() {
                             <div className="text-xs opacity-70 mb-1">{msg.role}</div>
                             <div className="whitespace-pre-wrap break-words">{msg.content}</div>
                             <div className="text-xs opacity-50 mt-1">
-                              {new Date(msg.createdAt).toLocaleString()}
+                              {formatServerDateTime(msg.createdAt)}
                             </div>
                           </div>
                         </div>

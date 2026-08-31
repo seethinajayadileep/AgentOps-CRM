@@ -4,6 +4,7 @@ import { Approval, ApprovalStatus } from '../../types/approval';
 import ApprovalStatusBadge from './ApprovalStatusBadge';
 import Badge from '../ui/Badge';
 import { approveApproval, rejectApproval } from '../../api/approvalsApi';
+import { formatServerDateTime } from '../../util/serverDate';
 
 interface ApprovalCardProps {
   approval: Approval;
@@ -53,7 +54,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
     }
   };
 
-  const formatDate = (dateString: string) => new Date(dateString).toLocaleString();
+  const formatDate = (dateString: string) => formatServerDateTime(dateString);
 
   return (
     <div className="glass-card glass-card-hover p-6">

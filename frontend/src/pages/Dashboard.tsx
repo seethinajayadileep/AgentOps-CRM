@@ -13,6 +13,7 @@ import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
 import Badge, { type BadgeColor } from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
+import { formatRelativeTime, formatServerDateTime } from '../util/serverDate';
 
 /**
  * Dashboard overview: live KPIs and a recent-activity timeline.
@@ -55,22 +56,8 @@ const EMPTY_STATS: DashboardStats = {
   recentActivity: [],
 };
 
-function formatRelativeTime(iso: string | null): string {
-  if (!iso) return 'Unknown time';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  const diffMs = Date.now() - date.getTime();
-  const minutes = Math.max(0, Math.round(diffMs / 60000));
-  if (minutes < 1) return 'Just now';
-  if (minutes === 1) return '1 min ago';
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours === 1) return '1 hr ago';
-  if (hours < 24) return `${hours} hr ago`;
-  const days = Math.round(hours / 24);
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days} days ago`;
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+function formatActivityTime(iso: string | null): string {
+  return formatRelativeTime(iso, { style: 'long', empty: 'Unknown time' });
 }
 
 function formatAction(action: string): string {
@@ -306,9 +293,9 @@ export default function Dashboard() {
                         <time
                           className="text-sm font-medium text-copy"
                           dateTime={item.createdAt || undefined}
-                          title={item.createdAt ? new Date(item.createdAt).toLocaleString() : undefined}
+                          title={item.createdAt ? formatServerDateTime(item.createdAt) : undefined}
                         >
-                          {formatRelativeTime(item.createdAt)}
+                          {formatActivityTime(item.createdAt)}
                         </time>
                       </div>
                       <p className="mt-1 text-[15px] text-copy">{formatAction(item.action)}</p>

@@ -4,6 +4,7 @@ import type { LeadSourceRun } from '../../types/leadFinder';
 import StatusBadge from '../ui/StatusBadge';
 import Modal from '../ui/Modal';
 import { safeClientError } from '../../util/safeClientError';
+import { formatServerDateTime, isOlderThan } from '../../util/serverDate';
 
 interface RunDetailsModalProps {
   run: LeadSourceRun;
@@ -32,7 +33,7 @@ export default function RunDetailsModal({ run, onClose, onSync }: RunDetailsModa
   const isStale =
     run.status === 'RUNNING' &&
     run.lastSyncedAt &&
-    Date.now() - new Date(run.lastSyncedAt).getTime() > 30 * 60 * 1000;
+    isOlderThan(run.lastSyncedAt, 30 * 60 * 1000);
 
   return (
     <Modal title="Run Details" onClose={onClose} className="max-w-2xl p-6">
@@ -127,9 +128,5 @@ function Field({ label, value, mono }: { label: string; value?: string | null; m
 
 function formatDate(value?: string | null): string {
   if (!value) return '—';
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return value;
-  }
+  return formatServerDateTime(value) || '—';
 }

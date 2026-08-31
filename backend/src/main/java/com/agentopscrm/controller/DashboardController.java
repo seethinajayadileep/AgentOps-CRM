@@ -9,6 +9,7 @@ import com.agentopscrm.repository.ConversationRepository;
 import com.agentopscrm.repository.LeadRepository;
 import com.agentopscrm.repository.VoiceCallRepository;
 import com.agentopscrm.service.DashboardStatsCache;
+import com.agentopscrm.util.TimestampJson;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.slf4j.Logger;
@@ -121,7 +122,7 @@ public class DashboardController {
             item.agentName = log.getAgentName();
             item.action = log.getAction();
             item.status = log.getStatus() != null ? log.getStatus().name() : null;
-            item.createdAt = log.getCreatedAt() != null ? log.getCreatedAt().toString() : null;
+            item.createdAt = TimestampJson.toIsoInstant(log.getCreatedAt());
             activity.add(item);
         }
         stats.recentActivity = activity;

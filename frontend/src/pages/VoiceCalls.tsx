@@ -9,6 +9,7 @@ import EmptyState from '../components/ui/EmptyState';
 import LoadingState from '../components/ui/LoadingState';
 import StatusBadge from '../components/ui/StatusBadge';
 import Modal from '../components/ui/Modal';
+import { formatServerDateTime } from '../util/serverDate';
 
 /**
   * Voice calls history page.
@@ -201,7 +202,7 @@ export default function VoiceCalls() {
                       {formatDuration(call.durationSeconds)}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
-                      {new Date(call.createdAt).toLocaleString()}
+                      {formatServerDateTime(call.createdAt)}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm">
                       <button
@@ -274,7 +275,7 @@ function CallDetailsModal({
             </div>
             <div>
               <p className="mb-1 text-xs uppercase tracking-wider text-slate">Date</p>
-              <p className="text-sm text-ink">{new Date(call.createdAt).toLocaleString()}</p>
+              <p className="text-sm text-ink">{formatServerDateTime(call.createdAt)}</p>
             </div>
           </div>
 

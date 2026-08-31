@@ -17,6 +17,7 @@ import StatusBadge from '../components/ui/StatusBadge';
 import LoadingState from '../components/ui/LoadingState';
 import ToastContainer from '../components/ui/ToastContainer';
 import { useToast } from '../hooks/useToast';
+import { formatServerDate, formatServerDateTime } from '../util/serverDate';
 import { useIntegrations } from '../hooks/useIntegrations';
 
 export default function LeadDetailPage() {
@@ -164,7 +165,7 @@ export default function LeadDetailPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold text-ink">{lead.name}</h2>
-              <p className="mt-1 text-sm text-slate">Created {new Date(lead.createdAt).toLocaleString()}</p>
+              <p className="mt-1 text-sm text-slate">Created {formatServerDateTime(lead.createdAt)}</p>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-center">
@@ -309,7 +310,7 @@ export default function LeadDetailPage() {
                       <StatusBadge status={call.status} />
                       {call.outcome && <span className="text-slate">Outcome: {call.outcome}</span>}
                     </div>
-                    <span className="text-slate">{new Date(call.createdAt).toLocaleDateString()}</span>
+                    <span className="text-slate">{formatServerDate(call.createdAt)}</span>
                   </div>
                 ))}
               </div>

@@ -8,6 +8,7 @@ import EmptyState from '../components/ui/EmptyState';
 import LoadingState from '../components/ui/LoadingState';
 import StatusBadge from '../components/ui/StatusBadge';
 import ExecutionDetailsModal from '../components/agent-logs/ExecutionDetailsModal';
+import { formatRelativeTime } from '../util/serverDate';
 
 /**
   * Agent logs audit page - complete observability for AI agent executions.
@@ -118,22 +119,6 @@ export default function AgentLogs() {
     if (ms < 1000) return `${ms}ms`;
     if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
     return `${(ms / 60000).toFixed(1)}m`;
-  };
-
-  const formatTimeAgo = (timestamp: string) => {
-    const now = new Date();
-    const past = new Date(timestamp);
-    const diffMs = now.getTime() - past.getTime();
-    const diffSecs = Math.floor(diffMs / 1000);
-    const diffMins = Math.floor(diffSecs / 60);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffSecs < 60) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return past.toLocaleDateString();
   };
 
   const getRelatedItem = (log: AgentLog) => {
@@ -370,7 +355,7 @@ export default function AgentLogs() {
                         className="border-b border-frost transition-colors duration-200 hover:bg-mist"
                       >
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
-                          {formatTimeAgo(log.createdAt)}
+                          {formatRelativeTime(log.createdAt)}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-ink">
                           {log.agentName}

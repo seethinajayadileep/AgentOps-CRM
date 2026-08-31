@@ -8,6 +8,7 @@ import { LeadScoreBadge } from '../components/leads/LeadScoreBadge';
 import PageHeader from '../components/ui/PageHeader';
 import EmptyState from '../components/ui/EmptyState';
 import LoadingState from '../components/ui/LoadingState';
+import { formatServerDate } from '../util/serverDate';
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -88,7 +89,7 @@ export default function LeadsPage() {
                       <LeadStatusBadge status={lead.status} />
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
-                      {new Date(lead.createdAt).toLocaleDateString()}
+                      {formatServerDate(lead.createdAt)}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm">
                       <Link to={`/leads/${lead.id}`} className="font-medium text-ink hover:text-ink">

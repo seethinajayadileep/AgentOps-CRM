@@ -175,11 +175,12 @@ class SettingsServiceIntegrationAndAgentsTest {
     }
 
     @Test
-    void redisTestDoesNotReportHealthy() throws Exception {
+    void redisTestDoesNotReportHealthyWhenDisabled() throws Exception {
         IntegrationTestResult result = settingsService.testIntegration("redis");
         assertFalse(result.isSuccess());
         assertEquals(ReadinessStatus.DISABLED, result.getStatus());
         assertFalse(result.getMessage().toLowerCase().contains("healthy"));
+        assertFalse(settingsService.getSystemDiagnostics().isRedisConfigured());
 
         when(embeddingService.isConfigured()).thenReturn(false);
         when(firecrawlClient.isConfigured()).thenReturn(false);
@@ -194,6 +195,47 @@ class SettingsServiceIntegrationAndAgentsTest {
                 .orElseThrow();
         assertFalse(redis.isConfigured());
         assertEquals(ReadinessStatus.DISABLED, redis.getStatus());
+        assertEquals("Not connected", redis.getConfigDetails());
+    }
+
+    @Test
+    void redisDiagnosticsMatchIntegrationsWhenEnabled() throws Exception {
+        org.springframework.data.redis.core.StringRedisTemplate template =
+                mock(org.springframework.data.redis.core.StringRedisTemplate.class);
+        org.springframework.data.redis.connection.RedisConnectionFactory factory =
+                mock(org.springframework.data.redis.connection.RedisConnectionFactory.class);
+        org.springframework.data.redis.connection.RedisConnection connection =
+                mock(org.springframework.data.redis.connection.RedisConnection.class);
+        when(template.getConnectionFactory()).thenReturn(factory);
+        when(template.getRequiredConnectionFactory()).thenReturn(factory);
+        when(factory.getConnection()).thenReturn(connection);
+        when(connection.ping()).thenReturn("PONG");
+
+        settingsService.setRedisTemplate(template);
+        ReflectionTestUtils.setField(settingsService, "redisEnabled", true);
+
+        assertTrue(settingsService.getSystemDiagnostics().isRedisConfigured());
+
+        when(embeddingService.isConfigured()).thenReturn(false);
+        when(firecrawlClient.isConfigured()).thenReturn(false);
+        when(apifyClient.isConfigured()).thenReturn(false);
+        Connection conn = mock(Connection.class);
+        when(dataSource.getConnection()).thenReturn(conn);
+        when(conn.isValid(2)).thenReturn(true);
+
+        IntegrationStatus redis = settingsService.getIntegrations().getIntegrations().stream()
+                .filter(item -> "Redis".equals(item.getName()))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(redis.isConfigured());
+        assertEquals(ReadinessStatus.HEALTHY, redis.getStatus());
+        assertFalse(redis.getConfigDetails().contains("StringRedisTemplate"));
+        assertFalse(redis.getConfigDetails().toLowerCase().contains("template"));
+        assertTrue(redis.getConfigDetails().contains("REDIS_URL"));
+
+        IntegrationTestResult result = settingsService.testIntegration("redis");
+        assertTrue(result.isSuccess());
+        assertEquals(ReadinessStatus.HEALTHY, result.getStatus());
     }
 
     @Test

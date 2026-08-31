@@ -10,6 +10,7 @@ import LoadingState from '../components/ui/LoadingState';
 import StatusBadge from '../components/ui/StatusBadge';
 import RunDetailsModal from '../components/leadFinder/RunDetailsModal';
 import { safeClientError } from '../util/safeClientError';
+import { formatServerDateTime, formatServerTime, isOlderThan } from '../util/serverDate';
 
 /**
   * Lead Finder page (F-010 Apify Lead Finder).
@@ -229,7 +230,7 @@ export default function LeadFinder() {
                   const isStale =
                     run.status === 'RUNNING' &&
                     run.lastSyncedAt &&
-                    Date.now() - new Date(run.lastSyncedAt).getTime() > 30 * 60 * 1000;
+                    isOlderThan(run.lastSyncedAt, 30 * 60 * 1000);
                   return (
                     <tr
                       key={run.id}
@@ -250,7 +251,7 @@ export default function LeadFinder() {
                             ) : (
                               <span>
                                 Last synced:{' '}
-                                {run.lastSyncedAt ? new Date(run.lastSyncedAt).toLocaleTimeString() : 'never'}
+                                {run.lastSyncedAt ? formatServerTime(run.lastSyncedAt) : 'never'}
                               </span>
                             )}
                           </div>
@@ -264,7 +265,7 @@ export default function LeadFinder() {
                       <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">{run.totalResults}</td>
                       <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">{run.importedCount}</td>
                       <td className="whitespace-nowrap px-6 py-4 text-sm text-slate">
-                        {new Date(run.createdAt).toLocaleString()}
+                        {formatServerDateTime(run.createdAt)}
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-sm" onClick={(e) => e.stopPropagation()}>
                         <button

@@ -31,6 +31,7 @@ import Badge from '../components/ui/Badge';
 import LoadingState from '../components/ui/LoadingState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import ToastContainer from '../components/ui/ToastContainer';
+import { formatServerDateTime } from '../util/serverDate';
 
 /** Light markdown cleanup for chunk previews so raw links/images aren't shown as prose. */
 function stripMarkdown(text: string): string {
@@ -660,7 +661,7 @@ export default function BusinessDetail() {
                   <Calendar size={18} className="text-slate" />
                   <div>
                     <p className="text-sm text-slate">Created</p>
-                    <p className="text-ink">{new Date(business.createdAt).toLocaleString()}</p>
+                    <p className="text-ink">{formatServerDateTime(business.createdAt)}</p>
                   </div>
                 </div>
                 {business.updatedAt && (
@@ -668,7 +669,7 @@ export default function BusinessDetail() {
                     <Clock size={18} className="text-slate" />
                     <div>
                       <p className="text-sm text-slate">Last Updated</p>
-                      <p className="text-ink">{new Date(business.updatedAt).toLocaleString()}</p>
+                      <p className="text-ink">{formatServerDateTime(business.updatedAt)}</p>
                     </div>
                   </div>
                 )}

@@ -230,7 +230,7 @@ public class SettingsService {
         redis.setName("Redis");
         redis.setPurpose("Auth rate limits and dashboard stats cache");
         redis.setLastChecked(Instant.now());
-        if (!redisEnabled || redisTemplate == null) {
+        if (!isRedisConfigured()) {
             redis.setConfigured(false);
             redis.setEnabled(false);
             redis.setStatus(ReadinessStatus.DISABLED);
@@ -246,11 +246,13 @@ public class SettingsService {
                 boolean ok = pong != null && !pong.isBlank();
                 redis.setStatus(ok ? ReadinessStatus.HEALTHY : ReadinessStatus.DEGRADED);
                 redis.setMessage(ok ? "Connected — used for auth throttling and dashboard cache" : "Ping failed");
-                redis.setConfigDetails("StringRedisTemplate");
+                redis.setConfigDetails(ok
+                        ? "Connected via REDIS_URL — used for login throttling and dashboard cache"
+                        : "Enabled via REDIS_URL but ping failed");
             } catch (Exception e) {
                 redis.setStatus(ReadinessStatus.DEGRADED);
                 redis.setMessage("Redis enabled but not reachable");
-                redis.setConfigDetails("Ping failed");
+                redis.setConfigDetails("Enabled via REDIS_URL but not reachable");
             }
         }
         integrations.add(redis);
@@ -487,7 +489,7 @@ public class SettingsService {
         response.setApiBasePath("/api");
         response.setServerTimezone(ZoneId.systemDefault().getId());
         response.setDatabaseType("PostgreSQL");
-        response.setRedisConfigured(false);
+        response.setRedisConfigured(isRedisConfigured());
         response.setFlywayEnabled(flywayEnabled);
         response.setHibernateSchemaMode(hibernateDdlAuto);
         response.setVectorStoreStrategy(vectorStoreStrategy);
@@ -541,7 +543,7 @@ public class SettingsService {
                     break;
 
                 case "redis":
-                    if (!redisEnabled || redisTemplate == null) {
+                    if (!isRedisConfigured()) {
                         result.setSuccess(false);
                         result.setStatus(ReadinessStatus.DISABLED);
                         result.setMessage("Redis is not enabled. Set REDIS_URL on Railway or REDIS_ENABLED=true locally.");
@@ -788,6 +790,10 @@ public class SettingsService {
             log.error("Failed to count businesses with knowledge", e);
             return 0;
         }
+    }
+
+    private boolean isRedisConfigured() {
+        return redisEnabled && redisTemplate != null;
     }
 
     private boolean isNonBlank(String value) {

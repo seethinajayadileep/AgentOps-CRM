@@ -28,6 +28,7 @@ import type {
   IntegrationTestResult,
   ReadinessStatus,
 } from '../types/settings';
+import { formatServerDateTime } from '../util/serverDate';
 
 /**
   * Comprehensive Settings page for system configuration, integration readiness and diagnostics.
@@ -925,9 +926,5 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 }
 
 function formatDateTime(isoString: string): string {
-  try {
-    return new Date(isoString).toLocaleString();
-  } catch {
-    return isoString;
-  }
+  return formatServerDateTime(isoString) || isoString;
 }
