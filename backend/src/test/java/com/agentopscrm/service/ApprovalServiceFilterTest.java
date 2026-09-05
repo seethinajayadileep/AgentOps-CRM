@@ -20,6 +20,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,7 +33,12 @@ class ApprovalServiceFilterTest {
 
     @BeforeEach
     void setUp() {
-        approvalService = new ApprovalService(approvalRepository, agentLogRepository, new ObjectMapper());
+        approvalService = new ApprovalService(
+                approvalRepository,
+                agentLogRepository,
+                new ObjectMapper(),
+                mock(com.agentopscrm.client.ResendClient.class),
+                mock(org.springframework.transaction.PlatformTransactionManager.class));
     }
 
     @ParameterizedTest

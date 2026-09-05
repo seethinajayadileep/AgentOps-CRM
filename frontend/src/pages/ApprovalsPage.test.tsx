@@ -8,6 +8,14 @@ vi.mock('../api/approvalsApi', () => ({
   getAllApprovals: vi.fn(),
 }));
 
+vi.mock('../hooks/useIntegrations', () => ({
+  useIntegrations: () => ({
+    loaded: true,
+    ready: () => false,
+    message: () => undefined,
+  }),
+}));
+
 import { getAllApprovals } from '../api/approvalsApi';
 
 describe('Approvals filter combinations', () => {

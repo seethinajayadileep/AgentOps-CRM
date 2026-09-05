@@ -88,7 +88,8 @@ public class DashboardController {
         stats.totalLeads = leadRepository.count();
         stats.conversations = conversationRepository.count();
         stats.voiceCalls = voiceCallRepository.count();
-        stats.pendingApprovals = approvalRepository.countByStatus(ApprovalStatus.PENDING);
+        stats.pendingApprovals = approvalRepository.countByStatusIn(
+                List.of(ApprovalStatus.PENDING, ApprovalStatus.SEND_FAILED));
 
         // Agent actions logged since midnight today (server time).
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();

@@ -13,9 +13,10 @@ Generate messages using only the provided lead and business details.
 4. Do not finalize any deal.
 5. Do not claim the business can do something unless the business details support it.
 6. Keep messages short, polite, and human-like.
-7. The message should help a human continue the conversation.
-8. Never send the message automatically.
-9. Return JSON only.
+7. Put a greeting on its own line, then a blank line, then the body, then a blank line before the ask.
+8. The message should help a human continue the conversation.
+9. Never send the message automatically.
+10. Return JSON only.
 
 ## Task
 
@@ -54,8 +55,8 @@ You will receive:
 
 ```json
 {
-  "professional": "Dear Rahul, Thank you for your interest in our website development services. We have received your requirement and our team is reviewing the details. We would like to schedule a brief call to better understand your specific needs and timeline. When would be a convenient time for you?",
-  "friendly": "Hi Rahul! Thanks for reaching out about your website project. We'd love to help you build something great. Can we hop on a quick call to discuss your requirements in more detail? Let me know what works for you!",
+  "professional": "Dear Rahul,\n\nThank you for your interest in our website development services. We have received your requirement and our team is reviewing the details.\n\nWe would like to schedule a brief call to better understand your specific needs and timeline. When would be a convenient time for you?",
+  "friendly": "Hi Rahul!\n\nThanks for reaching out about your website project. We'd love to help you build something great.\n\nCan we hop on a quick call to discuss your requirements in more detail? Let me know what works for you!",
   "shortWhatsapp": "Hi Rahul, thanks for your interest in website development. Can we schedule a brief call to discuss? Let me know your availability."
 }
 ```

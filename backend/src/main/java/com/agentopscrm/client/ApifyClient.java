@@ -1,5 +1,6 @@
 package com.agentopscrm.client;
 
+import com.agentopscrm.util.LeadLocation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -341,7 +342,7 @@ public class ApifyClient {
         result.contactName = firstNonBlank(raw, "contactName", "personName", "ownerName", "fullName", "contact");
         result.email = firstNonBlank(raw, "email", "emailAddress", "contactEmail");
         result.phone = firstNonBlank(raw, "phone", "phoneNumber", "telephone", "contactPhone", "mobile");
-        result.location = firstNonBlank(raw, "location", "address", "city", "fullAddress", "formattedAddress");
+        result.location = LeadLocation.fromApifyItem(raw);
         result.industry = firstNonBlank(raw, "industry", "category", "categoryName", "type");
         result.sourceUrl = firstNonBlank(raw, "sourceUrl", "url", "link", "profileUrl", "detailUrl");
 

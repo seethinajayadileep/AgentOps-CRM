@@ -9,7 +9,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
@@ -56,11 +55,9 @@ public class VoiceCall extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20)
     private VoiceCallStatus status = VoiceCallStatus.PENDING;
 
-    @Lob
     @Column(name = "transcript", columnDefinition = "TEXT")
     private String transcript;
 
-    @Lob
     @Column(name = "summary", columnDefinition = "TEXT")
     private String summary;
 

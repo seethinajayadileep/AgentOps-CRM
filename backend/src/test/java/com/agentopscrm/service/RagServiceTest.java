@@ -127,11 +127,10 @@ class RagServiceTest {
         when(vectorStoreService.embeddingToVectorString(any())).thenReturn("[1,0]");
         when(knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(businessAId)).thenReturn(2L);
         
-        List<Object[]> pgvectorResults = new ArrayList<>();
-        pgvectorResults.add(new Object[]{c1, 0.9});
-        pgvectorResults.add(new Object[]{c2, 0.85});
-        when(knowledgeChunkRepository.findTopKSimilarByPgvectorWithSimilarity(eq(businessAId), anyString(), anyInt()))
-                .thenReturn(pgvectorResults);
+        when(knowledgeChunkRepository.findTopKSimilarByPgvector(eq(businessAId), anyString(), anyInt()))
+                .thenReturn(List.of(c1, c2));
+        when(vectorStoreService.vectorStringToEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
+        when(vectorStoreService.cosineSimilarity(any(), any())).thenReturn(0.9f);
 
         RagService.SearchResult result = ragService.search(businessAId, "pricing");
 
@@ -182,10 +181,10 @@ class RagServiceTest {
         when(vectorStoreService.embeddingToVectorString(any())).thenReturn("[1,0]");
         when(knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(businessId)).thenReturn(1L);
         
-        List<Object[]> pgvectorResults = new ArrayList<>();
-        pgvectorResults.add(new Object[]{c, 0.9});
-        when(knowledgeChunkRepository.findTopKSimilarByPgvectorWithSimilarity(eq(businessId), anyString(), anyInt()))
-                .thenReturn(pgvectorResults);
+        when(knowledgeChunkRepository.findTopKSimilarByPgvector(eq(businessId), anyString(), anyInt()))
+                .thenReturn(List.of(c));
+        when(vectorStoreService.vectorStringToEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
+        when(vectorStoreService.cosineSimilarity(any(), any())).thenReturn(0.9f);
         
         when(answerService.isConfigured()).thenReturn(true);
         when(answerService.generateAnswer(anyString(), anyList(), any(Business.class)))
@@ -216,10 +215,10 @@ class RagServiceTest {
         when(vectorStoreService.embeddingToVectorString(any())).thenReturn("[1,0]");
         when(knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(businessId)).thenReturn(1L);
         
-        List<Object[]> weakResults = new ArrayList<>();
-        weakResults.add(new Object[]{c, 0.05});
-        when(knowledgeChunkRepository.findTopKSimilarByPgvectorWithSimilarity(eq(businessId), anyString(), anyInt()))
-                .thenReturn(weakResults); // below threshold
+        when(knowledgeChunkRepository.findTopKSimilarByPgvector(eq(businessId), anyString(), anyInt()))
+                .thenReturn(List.of(c));
+        when(vectorStoreService.vectorStringToEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
+        when(vectorStoreService.cosineSimilarity(any(), any())).thenReturn(0.05f);
         when(answerService.isConfigured()).thenReturn(true);
         when(answerService.generateAnswer(anyString(), anyList(), any(Business.class)))
                 .thenReturn(AnswerService.INSUFFICIENT_CONTEXT_ANSWER);
@@ -291,12 +290,10 @@ class RagServiceTest {
         when(knowledgeChunkRepository.findByBusinessId(businessId)).thenReturn(List.of(aboutChunk, contactChunk));
         when(knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(businessId)).thenReturn(2L);
         
-        // About chunk should be boosted and come first
-        when(knowledgeChunkRepository.findTopKSimilarByPgvectorWithSimilarity(eq(businessId), anyString(), anyInt()))
-                .thenReturn(List.of(
-                        new Object[]{contactChunk, 0.7},
-                        new Object[]{aboutChunk, 0.65}
-                ));
+        when(knowledgeChunkRepository.findTopKSimilarByPgvector(eq(businessId), anyString(), anyInt()))
+                .thenReturn(List.of(contactChunk, aboutChunk));
+        when(vectorStoreService.vectorStringToEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
+        when(vectorStoreService.cosineSimilarity(any(), any())).thenReturn(0.7f);
         
         when(answerService.isConfigured()).thenReturn(true);
         when(answerService.generateAnswer(anyString(), anyList(), any(Business.class)))
@@ -324,11 +321,8 @@ class RagServiceTest {
         when(vectorStoreService.embeddingToVectorString(any())).thenReturn("[1,0]");
         when(knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(businessId)).thenReturn(1L);
         
-        // Pgvector query works even though c.getEmbedding() is null
-        List<Object[]> pgvectorResults = new ArrayList<>();
-        pgvectorResults.add(new Object[]{c, 0.8});
-        when(knowledgeChunkRepository.findTopKSimilarByPgvectorWithSimilarity(eq(businessId), anyString(), anyInt()))
-                .thenReturn(pgvectorResults);
+        when(knowledgeChunkRepository.findTopKSimilarByPgvector(eq(businessId), anyString(), anyInt()))
+                .thenReturn(List.of(c));
 
         RagService.SearchResult result = ragService.search(businessId, "test query");
 
@@ -350,6 +344,61 @@ class RagServiceTest {
         // Should only access business A, never B
         verify(knowledgeChunkRepository).findByBusinessId(businessA);
         verify(knowledgeChunkRepository, never()).findByBusinessId(businessB);
+    }
+
+    @Test
+    void informalServiceQuestion_isBroadBusinessIntent() {
+        assertTrue(ragService.isBroadBusinessIntent("what are the service you will provide"));
+        assertTrue(ragService.isBroadBusinessIntent("what services do you offer"));
+        assertTrue(ragService.isBroadBusinessIntent("what are your services"));
+        assertFalse(ragService.isBroadBusinessIntent("what is the weather"));
+    }
+
+    @Test
+    void isMeaningful_rejectsPlaceholderLatin() {
+        String lorem = "Cras sed tortor maximus, pellentesque lectus ac, condimentum nisi. "
+                + "Nullam aliquet pharetra lacinia. Donec suscipit malesuada ornare. "
+                + "Mauris nunc nisl, vehicula sed elit ut, luctus tempor eros.";
+        assertFalse(ragService.isMeaningful(lorem, ragService.cleanChunkText(lorem)));
+    }
+
+    @Test
+    void search_informalServiceQuestion_mergesServicePageWhenPgvectorReturnsJunk() throws Exception {
+        UUID businessId = UUID.randomUUID();
+        Business b = business(businessId);
+        KnowledgeChunk portfolio = chunk(
+                UUID.randomUUID(),
+                b,
+                "Cras sed tortor maximus, pellentesque lectus ac, condimentum nisi. "
+                        + "Nullam aliquet pharetra lacinia. Donec suscipit malesuada ornare.",
+                "[1,0]",
+                "https://webseoindia.com/portfolio/",
+                "Portfolio");
+        KnowledgeChunk service = chunk(
+                UUID.randomUUID(),
+                b,
+                "Web SEO India provides SEO, PPC, website building and content marketing services.",
+                "[1,0]",
+                "https://webseoindia.com/service/website-building/",
+                "Website Building");
+
+        when(businessRepository.findById(businessId)).thenReturn(Optional.of(b));
+        when(knowledgeChunkRepository.findByBusinessId(businessId)).thenReturn(List.of(portfolio, service));
+        when(embeddingService.isConfigured()).thenReturn(true);
+        when(embeddingService.generateEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
+        when(vectorStoreService.embeddingToVectorString(any())).thenReturn("[1,0]");
+        when(knowledgeChunkRepository.countByBusinessIdWithPgvectorEmbedding(businessId)).thenReturn(2L);
+        when(knowledgeChunkRepository.findTopKSimilarByPgvector(eq(businessId), anyString(), anyInt()))
+                .thenReturn(List.of(portfolio));
+        when(vectorStoreService.vectorStringToEmbedding(anyString())).thenReturn(new float[]{1f, 0f});
+        when(vectorStoreService.cosineSimilarity(any(), any())).thenReturn(0.4f);
+
+        RagService.SearchResult result = ragService.search(businessId, "what are the service you will provide");
+
+        List<String> urls = result.getResults().stream().map(RagService.RagResult::getSourceUrl).toList();
+        assertTrue(urls.contains("https://webseoindia.com/service/website-building/"),
+                "Service page must be retrieved for informal chat questions");
+        verify(knowledgeChunkRepository).findTopKSimilarByPgvector(eq(businessId), anyString(), eq(15));
     }
 
     // Diagnostics: should be included in answer result

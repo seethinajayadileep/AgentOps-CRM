@@ -11,6 +11,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -58,6 +59,21 @@ public class Approval extends AuditableEntity {
 
     @Column(name = "review_comment", columnDefinition = "TEXT")
     private String reviewComment;
+
+    @Column(name = "sent_to", length = 255)
+    private String sentTo;
+
+    @Column(name = "sent_subject", length = 500)
+    private String sentSubject;
+
+    @Column(name = "resend_message_id", length = 100)
+    private String resendMessageId;
+
+    @Column(name = "sent_at")
+    private LocalDateTime sentAt;
+
+    @Column(name = "send_error", columnDefinition = "TEXT")
+    private String sendError;
 
     public Approval() {
         super();
@@ -130,5 +146,45 @@ public class Approval extends AuditableEntity {
 
     public void setReviewComment(String reviewComment) {
         this.reviewComment = reviewComment;
+    }
+
+    public String getSentTo() {
+        return sentTo;
+    }
+
+    public void setSentTo(String sentTo) {
+        this.sentTo = sentTo;
+    }
+
+    public String getSentSubject() {
+        return sentSubject;
+    }
+
+    public void setSentSubject(String sentSubject) {
+        this.sentSubject = sentSubject;
+    }
+
+    public String getResendMessageId() {
+        return resendMessageId;
+    }
+
+    public void setResendMessageId(String resendMessageId) {
+        this.resendMessageId = resendMessageId;
+    }
+
+    public LocalDateTime getSentAt() {
+        return sentAt;
+    }
+
+    public void setSentAt(LocalDateTime sentAt) {
+        this.sentAt = sentAt;
+    }
+
+    public String getSendError() {
+        return sendError;
+    }
+
+    public void setSendError(String sendError) {
+        this.sendError = sendError;
     }
 }

@@ -180,13 +180,14 @@ public class VapiClient {
     }
 
     /**
-     * Download recording bytes from a provider URL. Sends the configured Vapi
-     * token when present. Never logs the URL.
+     * Download recording bytes from a provider URL. The Vapi token is only sent
+     * to Vapi hosts. Cloudflare R2 rejects {@code Authorization: Bearer} with 400.
+     * Never logs the URL.
      */
     public ResponseEntity<byte[]> downloadMedia(String url) {
         HttpHeaders headers = new HttpHeaders();
         headers.set(HttpHeaders.USER_AGENT, "AgentOpsCRM/0.2");
-        if (apiKey != null && !apiKey.isBlank()) {
+        if (shouldSendVapiAuth(url) && apiKey != null && !apiKey.isBlank()) {
             headers.setBearerAuth(apiKey);
         }
         return restTemplate.exchange(
@@ -195,6 +196,66 @@ public class VapiClient {
             new HttpEntity<>(headers),
             byte[].class
         );
+    }
+
+    /**
+     * Download a call recording via Vapi's authenticated artifact endpoints.
+     * Private R2 / hipaa-recordings object URLs are not directly downloadable;
+     * {@code GET /call/{id}/mono-recording} 302s to a short-lived signed URL.
+     */
+    public ResponseEntity<byte[]> downloadCallRecording(String vapiCallId) throws VapiException {
+        if (vapiCallId == null || vapiCallId.isBlank()) {
+            throw new VapiException("Vapi call id is required");
+        }
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new VapiException("Vapi API key is not configured");
+        }
+
+        Exception last = null;
+        for (String artifact : java.util.List.of("mono-recording", "stereo-recording")) {
+            URI uri = URI.create(VAPI_API_BASE_URL + "/call/" + vapiCallId + "/" + artifact);
+            try {
+                HttpHeaders headers = new HttpHeaders();
+                headers.setBearerAuth(apiKey);
+                headers.set(HttpHeaders.USER_AGENT, "AgentOpsCRM/0.2");
+                headers.setAccept(java.util.List.of(MediaType.ALL));
+                ResponseEntity<byte[]> response = restTemplate.exchange(
+                        uri,
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        byte[].class
+                );
+                if (response.getBody() != null && response.getBody().length > 0) {
+                    return response;
+                }
+            } catch (HttpClientErrorException.NotFound e) {
+                last = e;
+            } catch (HttpClientErrorException | HttpServerErrorException e) {
+                String body = e.getResponseBodyAsString();
+                logger.warn("Vapi {} artifact failed status={} detail={}",
+                        artifact,
+                        e.getStatusCode().value(),
+                        body == null ? "" : body.substring(0, Math.min(180, body.length())));
+                last = e;
+            }
+        }
+        throw new VapiException("Recording artifact could not be retrieved", last);
+    }
+
+    static boolean shouldSendVapiAuth(String url) {
+        if (url == null || url.isBlank()) {
+            return false;
+        }
+        try {
+            String host = URI.create(url).getHost();
+            if (host == null) {
+                return false;
+            }
+            String lower = host.toLowerCase();
+            return lower.equals("api.vapi.ai") || lower.equals("storage.vapi.ai") || lower.endsWith(".vapi.ai");
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**
@@ -303,6 +364,12 @@ public class VapiClient {
 
         @JsonProperty("stereoRecordingUrl")
         public String stereoRecordingUrl;
+
+        @JsonProperty("presignedMonoUrl")
+        public String presignedMonoUrl;
+
+        @JsonProperty("presignedStereoUrl")
+        public String presignedStereoUrl;
 
         public Artifact() {}
     }

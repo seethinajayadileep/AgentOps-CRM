@@ -15,12 +15,14 @@ const ApprovalStatusBadge: React.FC<ApprovalStatusBadgeProps> = ({ status }) => 
         return 'green';
       case ApprovalStatus.REJECTED:
         return 'red';
+      case ApprovalStatus.SEND_FAILED:
+        return 'red';
       default:
         return 'gray';
     }
   };
 
-  return <Badge color={getColor()}>{status}</Badge>;
+  return <Badge color={getColor()}>{status === ApprovalStatus.SEND_FAILED ? 'Send failed' : status}</Badge>;
 };
 
 export default ApprovalStatusBadge;

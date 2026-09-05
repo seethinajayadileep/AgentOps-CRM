@@ -218,9 +218,11 @@ export default function AgentLogs() {
                 <option value="LeadQualificationAgent">LeadQualificationAgent</option>
                 <option value="EvaluationAgent">EvaluationAgent</option>
                 <option value="FollowUpAgent">FollowUpAgent</option>
+                <option value="ApprovalService">ApprovalService</option>
                 <option value="KnowledgeBaseBuilder">KnowledgeBaseBuilder</option>
                 <option value="Crawler">Crawler</option>
                 <option value="ApifyLeadFinder">ApifyLeadFinder</option>
+                <option value="LeadNotificationService">LeadNotificationService</option>
               </select>
             </div>
 
@@ -246,6 +248,10 @@ export default function AgentLogs() {
                 <option value="BUILD_KB_COMPLETED">Build KB Completed</option>
                 <option value="CRAWL_STARTED">Crawl Started</option>
                 <option value="CRAWL_COMPLETED">Crawl Completed</option>
+                <option value="FOLLOWUP_SENT">Follow-up Sent</option>
+                <option value="FOLLOWUP_SEND_FAILED">Follow-up Send Failed</option>
+                <option value="FRESH_LEAD_NOTIFIED">Fresh Lead Notified</option>
+                <option value="FRESH_LEAD_NOTIFY_FAILED">Fresh Lead Notify Failed</option>
               </select>
             </div>
 

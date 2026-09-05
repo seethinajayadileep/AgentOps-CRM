@@ -43,6 +43,7 @@ class LeadFinderReconciliationTest {
     @Mock private BusinessRepository businessRepository;
     @Mock private AgentLogRepository agentLogRepository;
     @Mock private ApifyClient apifyClient;
+    @Mock private LeadNotificationService leadNotificationService;
 
     private LeadFinderService service;
 
@@ -51,7 +52,7 @@ class LeadFinderReconciliationTest {
         // staleRunTimeoutMinutes = 30, matching the production default.
         service = new LeadFinderService(
             runRepository, discoveredLeadRepository, leadRepository,
-            businessRepository, agentLogRepository, apifyClient, 30L);
+            businessRepository, agentLogRepository, apifyClient, leadNotificationService, 30L);
         lenient().when(runRepository.save(any(LeadSourceRun.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 

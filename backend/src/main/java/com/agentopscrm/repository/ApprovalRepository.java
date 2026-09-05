@@ -57,6 +57,8 @@ public interface ApprovalRepository extends JpaRepository<Approval, UUID>, JpaSp
 
     long countByStatus(ApprovalStatus status);
 
+    long countByStatusIn(java.util.Collection<ApprovalStatus> statuses);
+
     @Query("SELECT COUNT(a) FROM Approval a WHERE a.lead.id = :leadId AND a.status = :status")
     long countByLeadIdAndStatus(@Param("leadId") UUID leadId, @Param("status") ApprovalStatus status);
 }

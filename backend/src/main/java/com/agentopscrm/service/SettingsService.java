@@ -1,10 +1,13 @@
 package com.agentopscrm.service;
 
 import com.agentopscrm.client.ApifyClient;
+import com.agentopscrm.client.CalComClient;
 import com.agentopscrm.client.FirecrawlClient;
+import com.agentopscrm.client.ResendClient;
+import com.agentopscrm.client.SlackWebhookClient;
+import com.agentopscrm.client.TelegramClient;
 import com.agentopscrm.client.VapiClient;
 import com.agentopscrm.dto.settings.*;
-import com.agentopscrm.entity.VoiceCall;
 import com.agentopscrm.util.AppVersion;
 import com.agentopscrm.util.SafeErrorMessages;
 import com.agentopscrm.entity.enums.ReadinessStatus;
@@ -16,7 +19,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.boot.actuate.health.Status;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -44,6 +46,10 @@ public class SettingsService {
     private final FirecrawlClient firecrawlClient;
     private final VapiClient vapiClient;
     private final ApifyClient apifyClient;
+    private final ResendClient resendClient;
+    private final CalComClient calComClient;
+    private final TelegramClient telegramClient;
+    private final SlackWebhookClient slackWebhookClient;
     private final EmbeddingService embeddingService;
     private final BusinessRepository businessRepository;
     private final DocumentRepository documentRepository;
@@ -115,6 +121,10 @@ public class SettingsService {
             FirecrawlClient firecrawlClient,
             VapiClient vapiClient,
             ApifyClient apifyClient,
+            ResendClient resendClient,
+            CalComClient calComClient,
+            TelegramClient telegramClient,
+            SlackWebhookClient slackWebhookClient,
             EmbeddingService embeddingService,
             BusinessRepository businessRepository,
             DocumentRepository documentRepository,
@@ -126,6 +136,10 @@ public class SettingsService {
         this.firecrawlClient = firecrawlClient;
         this.vapiClient = vapiClient;
         this.apifyClient = apifyClient;
+        this.resendClient = resendClient;
+        this.calComClient = calComClient;
+        this.telegramClient = telegramClient;
+        this.slackWebhookClient = slackWebhookClient;
         this.embeddingService = embeddingService;
         this.businessRepository = businessRepository;
         this.documentRepository = documentRepository;
@@ -154,6 +168,10 @@ public class SettingsService {
         components.put("firecrawl", checkFirecrawlStatus());
         components.put("apify", checkApifyStatus());
         components.put("vapi", checkVapiStatus());
+        components.put("resend", checkResendStatus());
+        components.put("calcom", checkCalComStatus());
+        components.put("telegram", checkTelegramStatus());
+        components.put("slack", checkSlackStatus());
 
         response.setComponents(components);
         return response;
@@ -212,6 +230,68 @@ public class SettingsService {
         vapi.setConfigDetails("Managed through environment configuration");
         vapi.setLastChecked(Instant.now());
         integrations.add(vapi);
+
+        IntegrationStatus resend = new IntegrationStatus();
+        resend.setName("Resend");
+        resend.setPurpose("Send approved email follow-ups");
+        resend.setConfigured(resendClient.isConfigured());
+        resend.setEnabled(resendClient.isConfigured());
+        resend.setStatus(checkResendStatus());
+        resend.setMessage(resendClient.isConfigured()
+                ? "Resend API key and from-address configured"
+                : "Set RESEND_API_KEY and RESEND_FROM to send approved emails");
+        resend.setConfigDetails(resendClient.isConfigured()
+                ? null
+                : "Optional. Approve still works without it; email-style drafts are only sent when configured.");
+        resend.setLastChecked(Instant.now());
+        integrations.add(resend);
+
+        IntegrationStatus calcom = new IntegrationStatus();
+        calcom.setName("Cal.com");
+        calcom.setPurpose("Booking link included in fresh-lead Telegram and Slack alerts");
+        calcom.setConfigured(calComClient.isConfigured());
+        calcom.setEnabled(calComClient.isConfigured());
+        calcom.setStatus(checkCalComStatus());
+        calcom.setMessage(calComClient.isConfigured()
+                ? (calComClient.hasApiKey()
+                        ? "Booking URL and API key configured"
+                        : "Booking URL configured")
+                : "Set CALCOM_BOOKING_URL to include a book-a-call link on new-lead alerts");
+        calcom.setConfigDetails(calComClient.isConfigured()
+                ? null
+                : "Optional. Public scheduling URL (https://cal.com/you/15min). API key is only for Test Connection.");
+        calcom.setLastChecked(Instant.now());
+        integrations.add(calcom);
+
+        IntegrationStatus telegram = new IntegrationStatus();
+        telegram.setName("Telegram");
+        telegram.setPurpose("Notify a chat when a fresh lead is created");
+        telegram.setConfigured(telegramClient.isConfigured());
+        telegram.setEnabled(telegramClient.isConfigured());
+        telegram.setStatus(checkTelegramStatus());
+        telegram.setMessage(telegramClient.isConfigured()
+                ? "Bot token and chat id configured"
+                : "Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to ping on new leads");
+        telegram.setConfigDetails(telegramClient.isConfigured()
+                ? null
+                : "Optional. Create a bot with BotFather, then add it to the chat you want pinged.");
+        telegram.setLastChecked(Instant.now());
+        integrations.add(telegram);
+
+        IntegrationStatus slack = new IntegrationStatus();
+        slack.setName("Slack");
+        slack.setPurpose("Notify a channel when a fresh lead is created");
+        slack.setConfigured(slackWebhookClient.isConfigured());
+        slack.setEnabled(slackWebhookClient.isConfigured());
+        slack.setStatus(checkSlackStatus());
+        slack.setMessage(slackWebhookClient.isConfigured()
+                ? "Incoming webhook configured"
+                : "Set SLACK_WEBHOOK_URL to ping on new leads");
+        slack.setConfigDetails(slackWebhookClient.isConfigured()
+                ? null
+                : "Optional. Incoming webhook URL from a Slack app (hooks.slack.com).");
+        slack.setLastChecked(Instant.now());
+        integrations.add(slack);
 
         // PostgreSQL
         IntegrationStatus postgres = new IntegrationStatus();
@@ -360,18 +440,12 @@ public class SettingsService {
             response.setSuccessfulCalls(voiceCallRepository.countByStatus(VoiceCallStatus.COMPLETED));
             response.setFailedCalls(voiceCallRepository.countByStatus(VoiceCallStatus.FAILED));
 
-            // Use sorted query to reliably get the latest calls
-            List<VoiceCall> completedCalls = voiceCallRepository.findByStatusOrderByCreatedAtDesc(
-                VoiceCallStatus.COMPLETED, PageRequest.of(0, 1)).getContent();
-            if (!completedCalls.isEmpty()) {
-                response.setLastSuccessfulCall(completedCalls.get(0).getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
-            }
-
-            List<VoiceCall> failedCalls = voiceCallRepository.findByStatusOrderByCreatedAtDesc(
-                VoiceCallStatus.FAILED, PageRequest.of(0, 1)).getContent();
-            if (!failedCalls.isEmpty()) {
-                response.setLastFailedCall(failedCalls.get(0).getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
-            }
+            voiceCallRepository.findLatestCreatedAtByStatus(VoiceCallStatus.COMPLETED)
+                    .ifPresent(createdAt -> response.setLastSuccessfulCall(
+                            createdAt.atZone(ZoneId.systemDefault()).toInstant()));
+            voiceCallRepository.findLatestCreatedAtByStatus(VoiceCallStatus.FAILED)
+                    .ifPresent(createdAt -> response.setLastFailedCall(
+                            createdAt.atZone(ZoneId.systemDefault()).toInstant()));
             
             // Metrics loaded successfully
             response.setMetricsAvailable(true);
@@ -532,7 +606,7 @@ public class SettingsService {
         result.setTestedAt(Instant.now());
 
         try {
-            switch (integrationName.toLowerCase()) {
+            switch (normalizeIntegrationKey(integrationName)) {
                 case "database":
                 case "postgresql":
                     testDatabase();
@@ -654,6 +728,85 @@ public class SettingsService {
                     }
                     break;
 
+                case "resend":
+                    if (!resendClient.isConfigured()) {
+                        result.setSuccess(false);
+                        result.setStatus(ReadinessStatus.NOT_CONFIGURED);
+                        result.setMessage("Resend is not configured. Set RESEND_API_KEY and RESEND_FROM.");
+                        result.setCheckType("CONFIG");
+                    } else {
+                        try {
+                            resendClient.ping();
+                            result.setSuccess(true);
+                            result.setStatus(ReadinessStatus.CONNECTED);
+                            result.setMessage("CONNECTED — authenticated with Resend (no email sent)");
+                            result.setCheckType("LIVE");
+                        } catch (Exception e) {
+                            applyProviderFailure(result, e);
+                            result.setCheckType("LIVE");
+                        }
+                    }
+                    break;
+
+                case "calcom":
+                    if (!calComClient.isConfigured()) {
+                        result.setSuccess(false);
+                        result.setStatus(ReadinessStatus.NOT_CONFIGURED);
+                        result.setMessage("Cal.com is not configured. Set CALCOM_BOOKING_URL.");
+                        result.setCheckType("CONFIG");
+                    } else if (!calComClient.hasApiKey()) {
+                        result.setSuccess(true);
+                        result.setStatus(ReadinessStatus.CONFIGURED);
+                        result.setMessage("CONFIGURED — booking URL is set (no API key; no live ping)");
+                        result.setCheckType("CONFIGURATION_ONLY");
+                    } else {
+                        try {
+                            calComClient.ping();
+                            result.setSuccess(true);
+                            result.setStatus(ReadinessStatus.CONNECTED);
+                            result.setMessage("CONNECTED — authenticated with Cal.com (no booking created)");
+                            result.setCheckType("LIVE");
+                        } catch (Exception e) {
+                            applyProviderFailure(result, e);
+                            result.setCheckType("LIVE");
+                        }
+                    }
+                    break;
+
+                case "telegram":
+                    if (!telegramClient.isConfigured()) {
+                        result.setSuccess(false);
+                        result.setStatus(ReadinessStatus.NOT_CONFIGURED);
+                        result.setMessage("Telegram is not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.");
+                        result.setCheckType("CONFIG");
+                    } else {
+                        try {
+                            telegramClient.ping();
+                            result.setSuccess(true);
+                            result.setStatus(ReadinessStatus.CONNECTED);
+                            result.setMessage("CONNECTED — Telegram bot reachable (no message sent)");
+                            result.setCheckType("LIVE");
+                        } catch (Exception e) {
+                            applyProviderFailure(result, e);
+                            result.setCheckType("LIVE");
+                        }
+                    }
+                    break;
+
+                case "slack":
+                    if (!slackWebhookClient.isConfigured()) {
+                        result.setSuccess(false);
+                        result.setStatus(ReadinessStatus.NOT_CONFIGURED);
+                        result.setMessage("Slack is not configured. Set SLACK_WEBHOOK_URL.");
+                        result.setCheckType("CONFIG");
+                    } else {
+                        result.setSuccess(true);
+                        result.setStatus(ReadinessStatus.CONFIGURED);
+                        result.setMessage("CONFIGURED — webhook URL looks valid (no message posted)");
+                        result.setCheckType("CONFIGURATION_ONLY");
+                    }
+                    break;
+
                 default:
                     result.setSuccess(false);
                     result.setStatus(ReadinessStatus.UNKNOWN);
@@ -738,6 +891,33 @@ public class SettingsService {
             return ReadinessStatus.CONFIGURED;
         }
         return vapiEnabled ? ReadinessStatus.NOT_CONFIGURED : ReadinessStatus.DISABLED;
+    }
+
+    private ReadinessStatus checkResendStatus() {
+        return resendClient.isConfigured() ? ReadinessStatus.CONFIGURED : ReadinessStatus.NOT_CONFIGURED;
+    }
+
+    private ReadinessStatus checkCalComStatus() {
+        return calComClient.isConfigured() ? ReadinessStatus.CONFIGURED : ReadinessStatus.NOT_CONFIGURED;
+    }
+
+    private ReadinessStatus checkTelegramStatus() {
+        return telegramClient.isConfigured() ? ReadinessStatus.CONFIGURED : ReadinessStatus.NOT_CONFIGURED;
+    }
+
+    private ReadinessStatus checkSlackStatus() {
+        return slackWebhookClient.isConfigured() ? ReadinessStatus.CONFIGURED : ReadinessStatus.NOT_CONFIGURED;
+    }
+
+    static String normalizeIntegrationKey(String integrationName) {
+        if (integrationName == null) {
+            return "";
+        }
+        String key = integrationName.toLowerCase(Locale.ROOT).replace(" ", "");
+        if ("cal.com".equals(key) || "cal-com".equals(key)) {
+            return "calcom";
+        }
+        return key;
     }
 
     private boolean isVapiConfigured() {

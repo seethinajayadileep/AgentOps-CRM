@@ -9,12 +9,27 @@ import { formatServerDateTime } from '../../util/serverDate';
 interface ApprovalCardProps {
   approval: Approval;
   onUpdate?: (updatedApproval: Approval) => void;
+  emailSendEnabled?: boolean;
 }
 
-const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
+function isEmailStyle(style?: string) {
+  const normalized = (style || '').trim().toUpperCase();
+  return normalized === 'PROFESSIONAL' || normalized === 'FRIENDLY';
+}
+
+const ApprovalCard: React.FC<ApprovalCardProps> = ({
+  approval,
+  onUpdate,
+  emailSendEnabled = false,
+}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const willSend = emailSendEnabled && isEmailStyle(approval.style);
+  const canAct =
+    approval.status === ApprovalStatus.PENDING || approval.status === ApprovalStatus.SEND_FAILED;
+  const missingEmail = willSend && !approval.leadEmail;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(approval.content);
@@ -70,6 +85,11 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
               Lead: <span className="text-ink">{approval.leadName}</span>
             </p>
           )}
+          {approval.leadEmail && (
+            <p className="text-sm text-slate">
+              Email: <span className="text-ink">{approval.leadEmail}</span>
+            </p>
+          )}
           {approval.businessName && (
             <p className="text-sm text-slate">
               Business: <span className="text-ink">{approval.businessName}</span>
@@ -90,9 +110,15 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
         </div>
       </div>
 
-      {actionError && (
+      {approval.status === ApprovalStatus.APPROVED && approval.sentTo && approval.sentAt && (
+        <p className="mb-3 text-sm text-ink">
+          Sent to {approval.sentTo} at {formatDate(approval.sentAt)}
+        </p>
+      )}
+
+      {(approval.sendError || actionError) && (
         <div className="mb-3 rounded-lg border border-frost bg-mist px-3 py-2 text-sm text-ink">
-          {actionError}
+          {actionError || approval.sendError}
         </div>
       )}
 
@@ -102,11 +128,21 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
           {copySuccess ? 'Copied!' : 'Copy'}
         </button>
 
-        {approval.status === ApprovalStatus.PENDING && (
+        {canAct && (
           <>
-            <button onClick={handleApprove} disabled={isLoading} className="btn-success">
+            <button
+              onClick={handleApprove}
+              disabled={isLoading}
+              className="btn-success"
+            >
               <ThumbsUp size={16} />
-              {isLoading ? 'Processing…' : 'Approve'}
+              {isLoading
+                ? willSend
+                  ? 'Sending…'
+                  : 'Processing…'
+                : willSend
+                  ? 'Approve & send'
+                  : 'Approve'}
             </button>
             <button onClick={handleReject} disabled={isLoading} className="btn-danger">
               <ThumbsDown size={16} />
@@ -115,12 +151,16 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({ approval, onUpdate }) => {
           </>
         )}
 
-        {approval.status === ApprovalStatus.APPROVED && (
+        {approval.status === ApprovalStatus.APPROVED && !approval.sentTo && (
           <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink">
             <Check size={16} /> Approved
           </span>
         )}
       </div>
+
+      {canAct && willSend && missingEmail && (
+        <p className="mt-3 text-xs text-slate">This lead has no email. Add one on the lead before sending.</p>
+      )}
     </div>
   );
 };

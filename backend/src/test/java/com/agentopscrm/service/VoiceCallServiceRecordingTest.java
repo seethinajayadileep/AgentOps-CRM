@@ -124,12 +124,79 @@ class VoiceCallServiceRecordingTest {
     }
 
     @Test
+    void fetchRecordingPrefersFreshPresignedUrlForPrivateR2() throws Exception {
+        UUID id = UUID.randomUUID();
+        VoiceCall call = new VoiceCall(id);
+        call.setRecordingUrl("https://abc.r2.cloudflarestorage.com/hipaa-recordings/call-mono.wav");
+        call.setVapiCallId("vapi-hipaa");
+        when(voiceCallRepository.findById(id)).thenReturn(Optional.of(call));
+        VapiClient.VapiCallResponse remote = new VapiClient.VapiCallResponse();
+        remote.artifact = new VapiClient.Artifact();
+        remote.artifact.recordingUrl = "https://abc.r2.cloudflarestorage.com/hipaa-recordings/call-mono.wav";
+        remote.artifact.presignedMonoUrl = "https://abc.r2.cloudflarestorage.com/hipaa-recordings/call-mono.wav?X-Amz-Signature=abc";
+        when(vapiClient.getCall("vapi-hipaa")).thenReturn(remote);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("audio/wav"));
+        when(vapiClient.downloadMedia(remote.artifact.presignedMonoUrl))
+                .thenReturn(new ResponseEntity<>(new byte[] {11, 12}, headers, HttpStatus.OK));
+
+        VoiceCallService.RecordingPayload payload = service.fetchRecording(id);
+
+        assertArrayEquals(new byte[] {11, 12}, payload.data());
+        assertEquals(
+                "https://abc.r2.cloudflarestorage.com/hipaa-recordings/call-mono.wav",
+                call.getRecordingUrl());
+    }
+
+    @Test
+    void extractRecordingUrlPrefersPresignedMonoOverUnsignedObjectUrl() {
+        VapiClient.VapiCallResponse remote = new VapiClient.VapiCallResponse();
+        remote.recordingUrl = "https://abc.r2.cloudflarestorage.com/hipaa-recordings/a.wav";
+        remote.artifact = new VapiClient.Artifact();
+        remote.artifact.recordingUrl = "https://abc.r2.cloudflarestorage.com/hipaa-recordings/a.wav";
+        remote.artifact.presignedMonoUrl = "https://abc.r2.cloudflarestorage.com/hipaa-recordings/a.wav?X-Amz-Algorithm=AWS4";
+
+        assertEquals(remote.artifact.presignedMonoUrl, VoiceCallService.extractRecordingUrl(remote));
+    }
+
+    @Test
     void extractRecordingUrlPrefersStereoArtifactWhenMonoMissing() {
         VapiClient.VapiCallResponse remote = new VapiClient.VapiCallResponse();
         remote.artifact = new VapiClient.Artifact();
         remote.artifact.stereoRecordingUrl = "https://cdn.example.com/stereo.wav";
 
         assertEquals("https://cdn.example.com/stereo.wav", VoiceCallService.extractRecordingUrl(remote));
+    }
+
+    @Test
+    void fetchRecordingUsesVapiArtifactForPrivateR2Url() throws Exception {
+        UUID id = UUID.randomUUID();
+        VoiceCall call = new VoiceCall(id);
+        call.setRecordingUrl("https://abc.r2.cloudflarestorage.com/hipaa-recordings/call-mono.wav");
+        call.setVapiCallId("vapi-hipaa");
+        when(voiceCallRepository.findById(id)).thenReturn(Optional.of(call));
+        when(vapiClient.getCall("vapi-hipaa")).thenReturn(new VapiClient.VapiCallResponse());
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("audio/wav"));
+        when(vapiClient.downloadCallRecording("vapi-hipaa"))
+                .thenReturn(new ResponseEntity<>(new byte[] {3, 4, 5}, headers, HttpStatus.OK));
+
+        VoiceCallService.RecordingPayload payload = service.fetchRecording(id);
+
+        assertArrayEquals(new byte[] {3, 4, 5}, payload.data());
+        assertEquals(MediaType.parseMediaType("audio/wav"), payload.contentType());
+        verify(vapiClient).downloadCallRecording("vapi-hipaa");
+    }
+
+    @Test
+    void privateStorageUrlDetectsR2AndHipaaPath() {
+        assertTrue(VoiceCallService.isPrivateStorageUrl(
+                "https://abc.r2.cloudflarestorage.com/hipaa-recordings/a.wav"));
+        assertTrue(VoiceCallService.isPrivateStorageUrl(
+                "https://storage.example.com/hipaa-recordings/a.wav"));
+        assertTrue(!VoiceCallService.isPrivateStorageUrl("https://storage.vapi.ai/a.wav"));
+        assertTrue(!VoiceCallService.isPrivateStorageUrl(
+                "https://abc.r2.cloudflarestorage.com/hipaa-recordings/a.wav?X-Amz-Signature=abc"));
     }
 
     @Test

@@ -11,6 +11,7 @@ import EmptyState from '../components/ui/EmptyState';
 import LoadingState from '../components/ui/LoadingState';
 import StatusBadge from '../components/ui/StatusBadge';
 import { safeClientError } from '../util/safeClientError';
+import { formatLeadLocation } from '../util/formatLeadLocation';
 
 /**
   * Lead Finder run results page (F-010).
@@ -270,6 +271,7 @@ export default function LeadFinderResults() {
               <tbody>
                 {leads.map((lead) => {
                   const importable = lead.status === 'NEW' || lead.status === 'REVIEWED';
+                  const locationLabel = formatLeadLocation(lead.location, lead.rawDataJson);
                   return (
                     <tr
                       key={lead.id}
@@ -298,7 +300,9 @@ export default function LeadFinderResults() {
                           '-'
                         )}
                       </td>
-                      <td className="px-4 py-4 text-sm text-slate">{lead.location || '-'}</td>
+                      <td className="max-w-[240px] truncate px-4 py-4 text-sm text-slate" title={locationLabel}>
+                        {locationLabel}
+                      </td>
                       <td className="px-4 py-4 text-sm text-slate">
                         {lead.score != null ? Math.round(lead.score) : '-'}
                       </td>

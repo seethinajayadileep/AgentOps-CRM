@@ -251,6 +251,23 @@ public class VoiceCallService {
         VoiceCall voiceCall = voiceCallRepository.findById(callId)
             .orElseThrow(() -> new IllegalArgumentException("Voice call not found with ID: " + callId));
         String url = voiceCall.getRecordingUrl();
+        String vapiCallId = voiceCall.getVapiCallId();
+
+        // Private R2 object URLs are not downloadable. Prefer a fresh
+        // presigned URL from GET /call, then Vapi's artifact redirect.
+        if (isPrivateStorageUrl(url) && vapiCallId != null && !vapiCallId.isBlank()) {
+            String presigned = refreshRecordingUrl(voiceCall);
+            if (isHttpUrl(presigned) && !isPrivateStorageUrl(presigned)) {
+                return downloadRecording(presigned);
+            }
+            try {
+                return recordingFromResponse(vapiClient.downloadCallRecording(vapiCallId), url);
+            } catch (Exception e) {
+                logger.warn("Vapi artifact download failed for call {} err={}",
+                    callId, e.getClass().getSimpleName());
+            }
+        }
+
         if (isHttpUrl(url)) {
             try {
                 return downloadRecording(url);
@@ -262,12 +279,26 @@ public class VoiceCallService {
 
         String refreshed = refreshRecordingUrl(voiceCall);
         if (isHttpUrl(refreshed)) {
-            RecordingPayload payload = downloadRecording(refreshed);
-            if (!refreshed.equals(url)) {
-                voiceCall.setRecordingUrl(refreshed);
-                voiceCallRepository.save(voiceCall);
+            try {
+                RecordingPayload payload = downloadRecording(refreshed);
+                if (!refreshed.equals(url) && !isPresignedUrl(refreshed)) {
+                    voiceCall.setRecordingUrl(refreshed);
+                    voiceCallRepository.save(voiceCall);
+                }
+                return payload;
+            } catch (IllegalStateException e) {
+                logger.warn("Refreshed recording URL failed for call {} err={}",
+                    callId, e.getClass().getSimpleName());
             }
-            return payload;
+        }
+
+        if (vapiCallId != null && !vapiCallId.isBlank()) {
+            try {
+                return recordingFromResponse(vapiClient.downloadCallRecording(vapiCallId), url);
+            } catch (Exception e) {
+                logger.warn("Vapi artifact fallback failed for call {} err={}",
+                    callId, e.getClass().getSimpleName());
+            }
         }
 
         if (url == null || url.isBlank()) {
@@ -277,6 +308,31 @@ public class VoiceCallService {
             throw new IllegalArgumentException("Recording is not playable");
         }
         throw new IllegalStateException("Recording could not be retrieved");
+    }
+
+    private RecordingPayload recordingFromResponse(ResponseEntity<byte[]> remote, String fallbackUrl) {
+        if (remote == null || remote.getBody() == null || remote.getBody().length == 0) {
+            throw new IllegalStateException("Recording could not be retrieved");
+        }
+        return new RecordingPayload(remote.getBody(), resolveAudioMediaType(remote.getHeaders(), fallbackUrl));
+    }
+
+    static boolean isPrivateStorageUrl(String url) {
+        if (!isHttpUrl(url) || isPresignedUrl(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase();
+        return lower.contains("r2.cloudflarestorage.com") || lower.contains("hipaa-recordings");
+    }
+
+    static boolean isPresignedUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return false;
+        }
+        String lower = url.toLowerCase();
+        return lower.contains("x-amz-signature")
+                || lower.contains("x-amz-algorithm")
+                || lower.contains("signature=");
     }
 
     private RecordingPayload downloadRecording(String url) {
@@ -319,6 +375,25 @@ public class VoiceCallService {
     static String extractRecordingUrl(VapiClient.VapiCallResponse remote) {
         if (remote == null) {
             return null;
+        }
+        if (remote.artifact != null) {
+            if (isHttpUrl(remote.artifact.presignedMonoUrl)) {
+                return remote.artifact.presignedMonoUrl;
+            }
+            if (isHttpUrl(remote.artifact.presignedStereoUrl)) {
+                return remote.artifact.presignedStereoUrl;
+            }
+        }
+        if (isHttpUrl(remote.recordingUrl) && isPresignedUrl(remote.recordingUrl)) {
+            return remote.recordingUrl;
+        }
+        if (remote.artifact != null) {
+            if (isHttpUrl(remote.artifact.recordingUrl) && isPresignedUrl(remote.artifact.recordingUrl)) {
+                return remote.artifact.recordingUrl;
+            }
+            if (isHttpUrl(remote.artifact.stereoRecordingUrl) && isPresignedUrl(remote.artifact.stereoRecordingUrl)) {
+                return remote.artifact.stereoRecordingUrl;
+            }
         }
         if (remote.recordingUrl != null && !remote.recordingUrl.isBlank()) {
             return remote.recordingUrl;

@@ -8,6 +8,7 @@ export enum ApprovalStatus {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
+  SEND_FAILED = 'SEND_FAILED',
 }
 
 export interface Approval {
@@ -18,8 +19,14 @@ export interface Approval {
   content: string;
   leadId?: string;
   leadName?: string;
+  leadEmail?: string;
   businessId?: string;
   businessName?: string;
+  sentTo?: string;
+  sentSubject?: string;
+  resendMessageId?: string;
+  sentAt?: string;
+  sendError?: string;
   createdAt: string;
   updatedAt: string;
 }

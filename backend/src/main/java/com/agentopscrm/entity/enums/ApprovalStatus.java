@@ -9,5 +9,6 @@ package com.agentopscrm.entity.enums;
 public enum ApprovalStatus {
     PENDING,
     APPROVED,
-    REJECTED
+    REJECTED,
+    SEND_FAILED
 }

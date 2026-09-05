@@ -15,6 +15,7 @@ import com.agentopscrm.repository.AgentLogRepository;
 import com.agentopscrm.repository.ApprovalRepository;
 import com.agentopscrm.repository.ConversationRepository;
 import com.agentopscrm.repository.LeadRepository;
+import com.agentopscrm.util.FollowUpEmailBody;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -170,7 +171,11 @@ public class FollowUpService {
         approval.setLead(lead);
         approval.setApprovalType(ApprovalType.FOLLOW_UP_MESSAGE);
         approval.setStyle(style);
-        approval.setContent(content);
+        if ("PROFESSIONAL".equalsIgnoreCase(style) || "FRIENDLY".equalsIgnoreCase(style)) {
+            approval.setContent(FollowUpEmailBody.plain(content));
+        } else {
+            approval.setContent(content);
+        }
         approval.setStatus(ApprovalStatus.PENDING);
         
         log.info("Creating approval for lead {} with style: {}", lead.getId(), style);

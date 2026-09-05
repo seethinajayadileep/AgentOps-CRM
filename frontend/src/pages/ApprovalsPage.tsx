@@ -7,6 +7,7 @@ import PageHeader from '../components/ui/PageHeader';
 import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import LoadingState from '../components/ui/LoadingState';
+import { useIntegrations } from '../hooks/useIntegrations';
 
 const ApprovalsPage: React.FC = () => {
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -15,6 +16,8 @@ const ApprovalsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<ApprovalStatus | 'ALL'>('ALL');
   const [typeFilter, setTypeFilter] = useState<ApprovalType | 'ALL'>('ALL');
   const fetchGeneration = useRef(0);
+  const integrations = useIntegrations();
+  const emailSendEnabled = integrations.loaded && integrations.ready('Resend');
 
   const fetchApprovals = async () => {
     const generation = ++fetchGeneration.current;
@@ -58,7 +61,11 @@ const ApprovalsPage: React.FC = () => {
     <div>
       <PageHeader
         title="Follow-up Approvals"
-        subtitle="Review and manage pending follow-up messages and other approval requests."
+        subtitle={
+          emailSendEnabled
+            ? 'Review drafts. Approve & send posts email-style follow-ups through Resend.'
+            : 'Review drafts. Approve email-style follow-ups here; sending needs Resend.'
+        }
         action={
           <button onClick={fetchApprovals} className="btn-primary">
             Refresh
@@ -81,6 +88,7 @@ const ApprovalsPage: React.FC = () => {
             >
               <option value="ALL">All Statuses</option>
               <option value={ApprovalStatus.PENDING}>Pending</option>
+              <option value={ApprovalStatus.SEND_FAILED}>Send failed</option>
               <option value={ApprovalStatus.APPROVED}>Approved</option>
               <option value={ApprovalStatus.REJECTED}>Rejected</option>
             </select>
@@ -127,7 +135,12 @@ const ApprovalsPage: React.FC = () => {
         <>
           <div className="space-y-4">
             {approvals.map((approval) => (
-              <ApprovalCard key={approval.approvalId} approval={approval} onUpdate={handleUpdate} />
+              <ApprovalCard
+                key={approval.approvalId}
+                approval={approval}
+                onUpdate={handleUpdate}
+                emailSendEnabled={emailSendEnabled}
+              />
             ))}
           </div>
           <div className="mt-6 text-center text-sm text-slate">

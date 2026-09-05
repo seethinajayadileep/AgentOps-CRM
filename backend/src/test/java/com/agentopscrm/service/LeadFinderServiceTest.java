@@ -45,6 +45,7 @@ class LeadFinderServiceTest {
     @Mock private BusinessRepository businessRepository;
     @Mock private AgentLogRepository agentLogRepository;
     @Mock private ApifyClient apifyClient;
+    @Mock private LeadNotificationService leadNotificationService;
 
     private LeadFinderService service;
 
@@ -52,7 +53,7 @@ class LeadFinderServiceTest {
     void setUp() {
         service = new LeadFinderService(
             runRepository, discoveredLeadRepository, leadRepository,
-            businessRepository, agentLogRepository, apifyClient, 30L);
+            businessRepository, agentLogRepository, apifyClient, leadNotificationService, 30L);
     }
 
     private StartLeadFinderRunRequest request() {
@@ -173,6 +174,7 @@ class LeadFinderServiceTest {
         assertNotNull(resp.getImportedLeadId());
         verify(leadRepository).save(any(Lead.class));
         verify(discoveredLeadRepository).save(dl);
+        verify(leadNotificationService).scheduleFreshLeadNotice(any(Lead.class), eq("LEAD_FINDER"));
     }
 
     // T-LF-06
@@ -194,6 +196,7 @@ class LeadFinderServiceTest {
             () -> service.importDiscoveredLead(dlId, bizId));
 
         verify(leadRepository, never()).save(any());
+        verify(leadNotificationService, never()).scheduleFreshLeadNotice(any(), any());
     }
 
     // T-LF-07

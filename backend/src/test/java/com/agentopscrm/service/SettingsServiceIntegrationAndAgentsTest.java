@@ -43,6 +43,10 @@ class SettingsServiceIntegrationAndAgentsTest {
     @Mock private com.agentopscrm.client.FirecrawlClient firecrawlClient;
     @Mock private com.agentopscrm.client.VapiClient vapiClient;
     @Mock private ApifyClient apifyClient;
+    @Mock private com.agentopscrm.client.ResendClient resendClient;
+    @Mock private com.agentopscrm.client.CalComClient calComClient;
+    @Mock private com.agentopscrm.client.TelegramClient telegramClient;
+    @Mock private com.agentopscrm.client.SlackWebhookClient slackWebhookClient;
     @Mock private EmbeddingService embeddingService;
     @Mock private BusinessRepository businessRepository;
     @Mock private DocumentRepository documentRepository;
@@ -55,7 +59,8 @@ class SettingsServiceIntegrationAndAgentsTest {
     @BeforeEach
     void setUp() {
         settingsService = new SettingsService(
-                dataSource, healthEndpoint, firecrawlClient, vapiClient, apifyClient,
+                dataSource, healthEndpoint, firecrawlClient, vapiClient, apifyClient, resendClient,
+                calComClient, telegramClient, slackWebhookClient,
                 embeddingService, businessRepository, documentRepository,
                 knowledgeChunkRepository, voiceCallRepository, agentLogRepository);
         ReflectionTestUtils.setField(settingsService, "apifyEnabled", true);
@@ -277,5 +282,76 @@ class SettingsServiceIntegrationAndAgentsTest {
         assertTrue(result.isSuccess());
         assertEquals(ReadinessStatus.CONNECTED, result.getStatus());
         assertTrue(result.getMessage().toLowerCase().contains("no call"));
+    }
+
+    @Test
+    void resendTestConnectionPingsProviderAndNeverSends() throws Exception {
+        when(resendClient.isConfigured()).thenReturn(true);
+
+        IntegrationTestResult result = settingsService.testIntegration("resend");
+
+        verify(resendClient).ping();
+        verify(resendClient, never()).sendEmail(any(), any(), any());
+        assertTrue(result.isSuccess());
+        assertEquals(ReadinessStatus.CONNECTED, result.getStatus());
+        assertEquals("LIVE", result.getCheckType());
+        assertTrue(result.getMessage().toLowerCase().contains("no email"));
+    }
+
+    @Test
+    void resendHidesOptionalNoteWhenConfigured() throws Exception {
+        when(embeddingService.isConfigured()).thenReturn(false);
+        when(firecrawlClient.isConfigured()).thenReturn(false);
+        when(apifyClient.isConfigured()).thenReturn(false);
+        when(resendClient.isConfigured()).thenReturn(true);
+        Connection conn = mock(Connection.class);
+        when(dataSource.getConnection()).thenReturn(conn);
+        when(conn.isValid(2)).thenReturn(true);
+
+        IntegrationStatus resend = settingsService.getIntegrations().getIntegrations().stream()
+                .filter(item -> "Resend".equals(item.getName()))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(resend.isConfigured());
+        assertNull(resend.getConfigDetails());
+    }
+
+    @Test
+    void telegramTestConnectionPingsBotAndNeverSends() throws Exception {
+        when(telegramClient.isConfigured()).thenReturn(true);
+
+        IntegrationTestResult result = settingsService.testIntegration("telegram");
+
+        verify(telegramClient).ping();
+        verify(telegramClient, never()).sendMessage(any());
+        assertTrue(result.isSuccess());
+        assertEquals(ReadinessStatus.CONNECTED, result.getStatus());
+        assertEquals("LIVE", result.getCheckType());
+        assertTrue(result.getMessage().toLowerCase().contains("no message"));
+    }
+
+    @Test
+    void slackTestConnectionDoesNotPost() throws Exception {
+        when(slackWebhookClient.isConfigured()).thenReturn(true);
+
+        IntegrationTestResult result = settingsService.testIntegration("slack");
+
+        verify(slackWebhookClient, never()).sendMessage(any());
+        assertTrue(result.isSuccess());
+        assertEquals(ReadinessStatus.CONFIGURED, result.getStatus());
+        assertEquals("CONFIGURATION_ONLY", result.getCheckType());
+    }
+
+    @Test
+    void calComTestConnectionAcceptsDottedName() throws Exception {
+        when(calComClient.isConfigured()).thenReturn(true);
+        when(calComClient.hasApiKey()).thenReturn(true);
+
+        IntegrationTestResult result = settingsService.testIntegration("cal.com");
+
+        verify(calComClient).ping();
+        assertTrue(result.isSuccess());
+        assertEquals(ReadinessStatus.CONNECTED, result.getStatus());
+        assertTrue(result.getMessage().toLowerCase().contains("no booking"));
     }
 }

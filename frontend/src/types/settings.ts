@@ -43,7 +43,7 @@ export interface IntegrationStatus {
   enabled: boolean;
   message: string;
   lastChecked: string;
-  configDetails: string;
+  configDetails?: string | null;
 }
 
 /**

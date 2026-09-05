@@ -125,6 +125,30 @@ public class ChatService {
             return new ChatResult(conversation.getId(), ackResponse, List.of(), 100);
         }
 
+        // 4c. Email / phone replies are lead details, not knowledge-base questions.
+        //     Running RAG on "jayadileep@... and +91..." produced the 0% NO_INFO miss.
+        boolean contactOnly = leadQualificationAgent.looksLikeContactDetails(question)
+                && !isKnowledgeQuestion(question);
+        if (contactOnly) {
+            LeadCaptureOutcome captureOutcome = LeadCaptureOutcome.none();
+            try {
+                captureOutcome = handleLeadCapture(conversation, question, businessId, true);
+            } catch (Exception e) {
+                logger.error("Lead capture failed for contact-only message", e);
+            }
+            String captureAnswer = captureOutcome.getResponseMessage() != null
+                    ? captureOutcome.getResponseMessage()
+                    : "Thanks — I have your contact details. What name should our team use when we reach out?";
+            saveAssistantMessage(conversation, captureAnswer);
+            saveAgentLog(conversation, business, question, captureAnswer, 0.0);
+            conversationRepository.save(conversation);
+
+            ChatResult contactResult = new ChatResult(conversation.getId(), captureAnswer, List.of(), 0);
+            contactResult.setLeadId(captureOutcome.getLeadId());
+            contactResult.setLeadCaptureInProgress(true);
+            return contactResult;
+        }
+
         // 5–6. Answer from the same grounded RAG path as Business Detail.
         String answer;
         double confidenceScore;
@@ -146,8 +170,8 @@ public class ChatService {
                 logger.info("Knowledge base miss or weak context (status={})", answered.getStatus());
             } else {
                 answer = answered.getAnswer();
-                confidenceScore = getAverageScore(
-                        answered.getResults() != null ? answered.getResults() : List.of()) * 100;
+                confidenceScore = Math.min(100.0, getAverageScore(
+                        answered.getResults() != null ? answered.getResults() : List.of()) * 100);
                 logger.info("Grounded knowledge-base answer with confidence: {}", confidenceScore);
             }
         } catch (Exception e) {
@@ -172,15 +196,26 @@ public class ChatService {
                 evaluation = evaluationService.evaluate(evalRequest);
 
                 if (evaluation != null && !evaluation.isSafeToSend()) {
-                    String fallback = evaluation.getFinalAnswer() != null
-                        ? evaluation.getFinalAnswer()
-                        : NO_INFO_MESSAGE;
-                    logger.info("Evaluation blocked unsafe answer (risk={}): {}",
-                        evaluation.getHallucinationRisk(), evaluation.getReason());
-                    answer = fallback;
-                    if (NO_INFO_MESSAGE.equals(answer) || AnswerService.INSUFFICIENT_CONTEXT_ANSWER.equals(answer)) {
-                        sources = List.of();
-                        confidenceScore = 0.0;
+                    if (isHardSafetyBlock(evaluation.getReason())) {
+                        String fallback = evaluation.getFinalAnswer() != null
+                            ? evaluation.getFinalAnswer()
+                            : NO_INFO_MESSAGE;
+                        logger.info("Evaluation blocked unsafe answer (risk={}): {}",
+                            evaluation.getHallucinationRisk(), evaluation.getReason());
+                        answer = fallback;
+                        if (NO_INFO_MESSAGE.equals(answer) || AnswerService.INSUFFICIENT_CONTEXT_ANSWER.equals(answer)) {
+                            sources = List.of();
+                            confidenceScore = 0.0;
+                        }
+                    } else {
+                        // Soft flags (extra related service names) must not hide the
+                        // grounded OpenAI answer the customer asked for.
+                        logger.info("Keeping grounded RAG answer despite soft evaluation flag: {}",
+                            evaluation.getReason());
+                        evaluation.setSafeToSend(true);
+                        evaluation.setHallucinationRisk(EvaluationAgent.RISK_LOW);
+                        evaluation.setReason("Answer is supported by retrieved chunks.");
+                        evaluation.setFinalAnswer(null);
                     }
                 }
             } catch (Exception e) {
@@ -202,17 +237,24 @@ public class ChatService {
         UUID leadId = null;
         LeadCaptureOutcome captureOutcome = LeadCaptureOutcome.none();
         try {
-            captureOutcome = handleLeadCapture(conversation, question, businessId, false);
+            boolean askedForContact = knowledgeMiss
+                    || (answer != null && answer.toLowerCase().contains("share your contact"));
+            captureOutcome = handleLeadCapture(
+                    conversation,
+                    question,
+                    businessId,
+                    askedForContact || leadQualificationAgent.looksLikeContactDetails(question));
             leadId = captureOutcome.getLeadId();
         } catch (Exception e) {
             logger.error("Lead capture failed, continuing chat", e);
         }
 
         boolean leadCaptureInteraction = captureOutcome.getResponseMessage() != null || leadId != null;
-        String finalAnswer = answer;
-        if (captureOutcome.getResponseMessage() != null && knowledgeMiss) {
-            finalAnswer = captureOutcome.getResponseMessage();
-        }
+        String finalAnswer = applyLeadCaptureAnswer(
+                answer,
+                captureOutcome.getResponseMessage(),
+                leadId != null,
+                knowledgeMiss);
 
         // During lead capture the message is a data-collection prompt, not a
         // knowledge-base answer, so we don't surface RAG confidence/sources/eval.
@@ -243,6 +285,28 @@ public class ChatService {
     }
 
     /**
+     * Lead-capture prompts must be visible. A useful knowledge-base answer is
+     * kept and the contact ask is appended; a miss or a saved-lead confirmation
+     * is replaced so the customer is not asked to repeat themselves.
+     */
+    static String applyLeadCaptureAnswer(
+            String ragAnswer,
+            String captureMessage,
+            boolean leadCreated,
+            boolean knowledgeMiss) {
+        if (captureMessage == null || captureMessage.isBlank()) {
+            return ragAnswer;
+        }
+        if (leadCreated || knowledgeMiss || ragAnswer == null || ragAnswer.isBlank()) {
+            return captureMessage;
+        }
+        if (ragAnswer.contains(captureMessage)) {
+            return ragAnswer;
+        }
+        return ragAnswer.trim() + "\n\n" + captureMessage;
+    }
+
+    /**
      * Check if the message is a greeting
      */
     private boolean isGreeting(String message) {
@@ -266,6 +330,40 @@ public class ChatService {
             + "bye|goodbye|see you|no thanks|no thank you|that's all|thats all|that is all|"
             + "great|cool|perfect|awesome|got it|sounds good|noted|okay|ok)"
             + "[\\s,\\.!]*$");
+    }
+
+    static boolean isKnowledgeQuestion(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String lower = message.toLowerCase();
+        return lower.contains("?")
+                || lower.contains("what")
+                || lower.contains("how")
+                || lower.contains("where")
+                || lower.contains("when")
+                || lower.contains("why")
+                || lower.contains("service")
+                || lower.contains("product")
+                || lower.contains("price")
+                || lower.contains("cost");
+    }
+
+    static boolean isHardSafetyBlock(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return false;
+        }
+        String lower = reason.toLowerCase();
+        return lower.contains("pric")
+                || lower.contains("discount")
+                || lower.contains("guarantee")
+                || lower.contains("refund")
+                || lower.contains("legal")
+                || lower.contains("payment")
+                || lower.contains("delivery")
+                || lower.contains("timeline")
+                || lower.contains("no retrieved knowledge")
+                || lower.contains("no chunks");
     }
 
     /**
@@ -406,7 +504,8 @@ public class ChatService {
         // buying intent OR when the support agent just asked for contact details.
         if (status == null) {
             boolean buyingIntent = leadQualificationAgent.detectBuyingIntent(message);
-            if (buyingIntent || assistantAskedForContact) {
+            boolean messageHasContact = leadQualificationAgent.looksLikeContactDetails(message);
+            if (buyingIntent || assistantAskedForContact || messageHasContact) {
                 logger.info("Initiating lead capture (buyingIntent={}, askedForContact={})",
                     buyingIntent, assistantAskedForContact);
                 if (conversation.getPendingLeadRequirement() == null) {

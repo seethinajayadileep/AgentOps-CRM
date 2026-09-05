@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * AI Agent for lead qualification and extraction from customer messages.
@@ -114,12 +116,19 @@ public class LeadQualificationAgent {
 
             // Parse JSON response
             LeadExtractionResult result = parseExtractionResult(content);
+            applyRegexContactHints(result, message);
             log.info("Successfully extracted lead info: name={}, email={}, phone={}", 
                     result.getName(), result.getEmail(), result.getPhone());
 
             return result;
 
         } catch (Exception e) {
+            LeadExtractionResult fallback = new LeadExtractionResult();
+            applyRegexContactHints(fallback, message);
+            if (fallback.getEmail() != null || fallback.getPhone() != null) {
+                log.warn("AI extraction failed, using regex contact hints", e);
+                return fallback;
+            }
             log.error("Lead extraction failed", e);
             throw new LeadQualificationException("Failed to extract lead information: " + e.getMessage(), e);
         }
@@ -183,12 +192,12 @@ public class LeadQualificationAgent {
         }
 
         String lowerMessage = message.toLowerCase();
-        
-        // Buying intent keywords
+
+        // Buying intent keywords, including common misspellings of "interested"
         String[] keywords = {
             "price", "pricing", "quote",
             "buy", "purchase", "order",
-            "interested",
+            "interested", "intersted", "intrested", "interestd",
             "call me", "contact me", "demo",
             "budget", "payment",
             "how much", "what does it cost", "what is the cost",
@@ -202,7 +211,45 @@ public class LeadQualificationAgent {
             }
         }
 
+        if (lowerMessage.matches("(?s).*\\b(want|need|looking for)\\b.{0,40}\\b(service|services|demo|quote|package)\\b.*")
+                || lowerMessage.matches("(?s).*\\b(service|services|demo|quote|package)\\b.{0,40}\\b(want|need)\\b.*")) {
+            log.info("Detected buying intent from want/need + service phrasing");
+            return true;
+        }
+
         return false;
+    }
+
+    public boolean looksLikeContactDetails(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        LeadExtractionResult hints = new LeadExtractionResult();
+        applyRegexContactHints(hints, message);
+        return (hints.getEmail() != null && !hints.getEmail().isBlank())
+                || (hints.getPhone() != null && !hints.getPhone().isBlank());
+    }
+
+    static void applyRegexContactHints(LeadExtractionResult result, String message) {
+        if (result == null || message == null || message.isBlank()) {
+            return;
+        }
+        if (result.getEmail() == null || result.getEmail().isBlank()) {
+            Matcher email = Pattern.compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}").matcher(message);
+            if (email.find()) {
+                result.setEmail(email.group());
+            }
+        }
+        if (result.getPhone() == null || result.getPhone().isBlank()) {
+            Matcher phone = Pattern.compile("\\+?\\d[\\d\\s().-]{8,}\\d").matcher(message);
+            if (phone.find()) {
+                String raw = phone.group().trim();
+                String digits = raw.replaceAll("\\D", "");
+                if (digits.length() >= 10) {
+                    result.setPhone(raw);
+                }
+            }
+        }
     }
 
     /**

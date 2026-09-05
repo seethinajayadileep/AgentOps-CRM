@@ -255,9 +255,11 @@ function IntegrationsTab() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-lg bg-mist p-3">
-                <p className="text-xs text-slate">{integration.configDetails}</p>
-              </div>
+              {integration.configDetails ? (
+                <div className="mt-4 rounded-lg bg-mist p-3">
+                  <p className="text-xs text-slate">{integration.configDetails}</p>
+                </div>
+              ) : null}
 
               {integration.configured && integration.name !== 'Redis' && (
                 <Button

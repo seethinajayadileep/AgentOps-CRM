@@ -54,6 +54,7 @@ public class LeadQualificationService {
     private final ConversationRepository conversationRepository;
     private final AgentLogRepository agentLogRepository;
     private final ObjectMapper objectMapper;
+    private final LeadNotificationService leadNotificationService;
 
     public LeadQualificationService(
             LeadQualificationAgent agent,
@@ -61,13 +62,15 @@ public class LeadQualificationService {
             BusinessRepository businessRepository,
             ConversationRepository conversationRepository,
             AgentLogRepository agentLogRepository,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            LeadNotificationService leadNotificationService) {
         this.agent = agent;
         this.leadRepository = leadRepository;
         this.businessRepository = businessRepository;
         this.conversationRepository = conversationRepository;
         this.agentLogRepository = agentLogRepository;
         this.objectMapper = objectMapper;
+        this.leadNotificationService = leadNotificationService;
     }
 
     /**
@@ -117,6 +120,7 @@ public class LeadQualificationService {
 
             // Create or update lead
             Lead lead;
+            boolean created = existingLead == null;
             if (existingLead != null) {
                 lead = updateExistingLead(existingLead, extraction);
                 log.info("Updated existing lead: {}", lead.getId());
@@ -141,6 +145,9 @@ public class LeadQualificationService {
 
             // Save lead
             lead = leadRepository.save(lead);
+            if (created) {
+                leadNotificationService.scheduleFreshLeadNotice(lead, "INBOUND");
+            }
 
             // Update conversation with lead contact information
             if (conversation != null) {

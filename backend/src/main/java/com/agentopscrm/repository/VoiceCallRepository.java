@@ -61,6 +61,14 @@ public interface VoiceCallRepository extends JpaRepository<VoiceCall, UUID> {
 
     long countByStatus(VoiceCallStatus status);
 
+    /**
+     * Latest created_at for a status without loading the VoiceCall entity.
+     * transcript/summary are LOB-mapped TEXT; selecting the full row can fail
+     * with "Unable to access lob stream" on PostgreSQL.
+     */
+    @Query("SELECT MAX(v.createdAt) FROM VoiceCall v WHERE v.status = :status")
+    Optional<LocalDateTime> findLatestCreatedAtByStatus(@Param("status") VoiceCallStatus status);
+
     long countByCreatedAtBefore(LocalDateTime cutoff);
 
     @Query("SELECT AVG(v.durationSeconds) FROM VoiceCall v WHERE v.business.id = :businessId AND v.status = 'COMPLETED'")

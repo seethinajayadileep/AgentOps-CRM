@@ -51,8 +51,9 @@ public class AnswerService {
               reply with EXACTLY this sentence and nothing else:
               "%s"
             - Be concise and clear (2-6 sentences). Do not output markdown links or menus.
-            - For "What is this business about?" type questions, use the business profile
-              and any relevant supporting content from the website.
+            - For questions about what the business does, provides, or offers
+              (including informal phrasing like "what are the service you will provide"),
+              list every service, product, or offering mentioned in the context.
             """.formatted(INSUFFICIENT_CONTEXT_ANSWER);
 
     private final RestTemplate restTemplate;

@@ -16,7 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -64,20 +68,32 @@ public class RagService {
         Pattern.compile(".*describe\\s+this\\s+(business|company).*", Pattern.CASE_INSENSITIVE),
         Pattern.compile(".*summarize\\s+this\\s+(business|company).*", Pattern.CASE_INSENSITIVE),
         Pattern.compile(".*what\\s+services\\s+do\\s+(they|you)\\s+provide.*", Pattern.CASE_INSENSITIVE),
+        Pattern.compile(".*what\\s+(are|is)\\s+your\\s+(services?|products?|solutions?).*", Pattern.CASE_INSENSITIVE),
+        Pattern.compile(".*what\\s+services\\s+(do\\s+you\\s+)?(offer|have|provide).*", Pattern.CASE_INSENSITIVE),
+        Pattern.compile(".*your\\s+(services?|products?).*", Pattern.CASE_INSENSITIVE),
         Pattern.compile(".*who\\s+do\\s+(they|you)\\s+serve.*", Pattern.CASE_INSENSITIVE),
         Pattern.compile(".*what\\s+(is|are)\\s+the\\s+business.*", Pattern.CASE_INSENSITIVE),
         Pattern.compile(".*tell\\s+me\\s+about\\s+this\\s+(business|company).*", Pattern.CASE_INSENSITIVE),
         Pattern.compile(".*who\\s+(is|are)\\s+the\\s+customers.*", Pattern.CASE_INSENSITIVE),
-        Pattern.compile(".*what.*products.*", Pattern.CASE_INSENSITIVE),
-        Pattern.compile(".*what.*solutions.*", Pattern.CASE_INSENSITIVE)
+        Pattern.compile(".*what.*products?.*", Pattern.CASE_INSENSITIVE),
+        Pattern.compile(".*what.*solutions?.*", Pattern.CASE_INSENSITIVE),
+        Pattern.compile(".*what.*services?.*", Pattern.CASE_INSENSITIVE),
+        Pattern.compile(".*services?\\s+(you\\s+)?(will\\s+)?(provide|offer|have).*", Pattern.CASE_INSENSITIVE)
     );
+
+    private static final Set<String> KEYWORD_STOPWORDS = Set.of(
+            "a", "an", "the", "is", "are", "was", "were", "be", "been",
+            "do", "does", "did", "will", "would", "can", "could",
+            "what", "which", "who", "whom", "this", "that", "these", "those",
+            "you", "your", "they", "their", "we", "our", "i", "me",
+            "to", "of", "for", "in", "on", "at", "and", "or", "with");
 
     /** URL patterns that indicate homepage or high-value business overview pages. */
     private static final List<Pattern> PRIORITY_URL_PATTERNS = List.of(
         Pattern.compile(".*/about.*", Pattern.CASE_INSENSITIVE),
-        Pattern.compile(".*/services.*", Pattern.CASE_INSENSITIVE),
-        Pattern.compile(".*/products.*", Pattern.CASE_INSENSITIVE),
-        Pattern.compile(".*/solutions.*", Pattern.CASE_INSENSITIVE),
+        Pattern.compile(".*/services?(/|\\b).*", Pattern.CASE_INSENSITIVE),
+        Pattern.compile(".*/products?(/|\\b).*", Pattern.CASE_INSENSITIVE),
+        Pattern.compile(".*/solutions?(/|\\b).*", Pattern.CASE_INSENSITIVE),
         Pattern.compile("^https?://[^/]+/?$", Pattern.CASE_INSENSITIVE) // Homepage (just domain, no path or single /)
     );
 
@@ -226,7 +242,7 @@ public class RagService {
         int limit = resolveTopK(topK);
         Business business = businessRepository.findById(businessId).orElse(null);
         List<RagResult> results = search.getResults();
-        boolean isBroadBusinessQuery = isBroadBusinessIntent(query);
+        boolean isBroadBusinessQuery = isBroadBusinessIntent(search.getQuery());
 
         // Select meaningful, sufficiently-similar chunks to ground the answer.
         List<RagResult> grounding = new ArrayList<>();
@@ -347,13 +363,25 @@ public class RagService {
 
     /**
      * Check if the query is a broad business-intent question.
+     * Also covers informal phrasing such as "what are the service you will provide".
      */
-    private boolean isBroadBusinessIntent(String query) {
+    boolean isBroadBusinessIntent(String query) {
         if (query == null || query.isBlank()) {
             return false;
         }
-        return BROAD_BUSINESS_INTENT_PATTERNS.stream()
-                .anyMatch(pattern -> pattern.matcher(query).matches());
+        if (BROAD_BUSINESS_INTENT_PATTERNS.stream().anyMatch(pattern -> pattern.matcher(query).matches())) {
+            return true;
+        }
+        String normalized = query.toLowerCase(Locale.ROOT);
+        boolean asksWhat = normalized.contains("what")
+                || normalized.contains("which")
+                || normalized.contains("tell")
+                || normalized.contains("list");
+        boolean aboutOfferings = normalized.contains("service")
+                || normalized.contains("product")
+                || normalized.contains("solution")
+                || normalized.contains("offering");
+        return asksWhat && aboutOfferings;
     }
 
     /**
@@ -468,11 +496,15 @@ public class RagService {
             return false;
         }
         
-        // Check for cookie banner / navigation boilerplate patterns
-        String lower = cleaned.toLowerCase();
-        if (lower.contains("cookie") && lower.contains("accept") || 
-            lower.contains("privacy") && lower.contains("policy") && words < 20 ||
-            lower.matches(".*\\b(home|about|services|products|contact)\\s+(home|about|services|products|contact).*")) {
+        // Check for cookie banner / navigation boilerplate / placeholder Latin
+        String lower = cleaned.toLowerCase(Locale.ROOT);
+        if (lower.contains("lorem ipsum")
+                || lower.contains("consectetur adipiscing")
+                || lower.contains("pellentesque lectus")
+                || lower.contains("donec suscipit")
+                || (lower.contains("cookie") && lower.contains("accept"))
+                || (lower.contains("privacy") && lower.contains("policy") && words < 20)
+                || lower.matches(".*\\b(home|about|services|products|contact)\\s+(home|about|services|products|contact).*")) {
             return false;
         }
         
@@ -517,28 +549,36 @@ public class RagService {
         
         try {
             log.debug("Using pgvector native similarity search for business {} (limit: {})", businessId, retrievalLimit);
-            
-            // Use native query with similarity calculation
-            List<Object[]> pgvectorResults = 
-                knowledgeChunkRepository.findTopKSimilarByPgvectorWithSimilarity(businessId, queryVectorString, retrievalLimit);
-            
-            List<RagResult> results = new ArrayList<>();
-            for (Object[] row : pgvectorResults) {
-                KnowledgeChunk chunk = (KnowledgeChunk) row[0];
-                Double similarity = (Double) row[1];
-                
-                RagResult result = toResult(chunk, similarity);
-                results.add(result);
+
+            // SELECT * maps to the entity. The extra-column Object[] query was returning
+            // raw UUIDs (or empty lists), so chat questions never reached the website chunks.
+            List<KnowledgeChunk> found =
+                    knowledgeChunkRepository.findTopKSimilarByPgvector(businessId, queryVectorString, retrievalLimit);
+
+            if (found == null || found.isEmpty()) {
+                log.warn("Pgvector returned no rows; falling back to legacy search");
+                return semanticSearchLegacy(query, chunks, limit, isBroadBusinessQuery);
             }
-            
-            // Apply priority boosting for broad business queries
+
+            List<RagResult> results = new ArrayList<>();
+            for (KnowledgeChunk chunk : found) {
+                results.add(toResult(chunk, similarityToQuery(queryEmbedding, chunk)));
+            }
+
+            // Native SELECT * + vector column often hydrates only a few rows.
+            // Merge keyword hits so chat questions still reach /service pages.
+            if (found.size() < retrievalLimit || isBroadBusinessQuery) {
+                log.info("Pgvector returned {} of {} rows; merging keyword matches", found.size(), retrievalLimit);
+                results = mergeUnique(results, keywordFallback(query, chunks, retrievalLimit, false));
+            }
+
             if (isBroadBusinessQuery) {
                 results = applyPriorityBoosting(results);
             }
-            
-            log.debug("Pgvector returned {} results", results.size());
-            return rankAndTrim(results, limit);
-            
+
+            log.debug("Pgvector returned {} results after merge", results.size());
+            return rankAndTrim(diversifyBySource(results, limit), limit);
+
         } catch (Exception e) {
             log.warn("Pgvector query failed, falling back to legacy search: {}", e.getMessage());
             return semanticSearchLegacy(query, chunks, limit, isBroadBusinessQuery);
@@ -573,8 +613,8 @@ public class RagService {
             scored.add(toResult(chunk, similarity));
         }
 
-        // Apply priority boosting for broad business queries
         if (isBroadBusinessQuery) {
+            scored = mergeUnique(scored, keywordFallback(query, chunks, retrievalLimit, false));
             scored = applyPriorityBoosting(scored);
         }
 
@@ -582,7 +622,7 @@ public class RagService {
                 b.getSimilarity() == null ? 0.0 : b.getSimilarity(),
                 a.getSimilarity() == null ? 0.0 : a.getSimilarity()));
 
-        return rankAndTrim(scored, limit);
+        return rankAndTrim(diversifyBySource(scored, limit), limit);
     }
 
     /**
@@ -595,7 +635,9 @@ public class RagService {
         for (RagResult result : results) {
             if (isPriorityChunk(result)) {
                 // Boost similarity score by 15%
-                double boostedSim = result.getSimilarity() != null ? result.getSimilarity() * 1.15 : 0.0;
+                double boostedSim = result.getSimilarity() != null
+                        ? Math.min(1.0, result.getSimilarity() * 1.15)
+                        : 0.0;
                 RagResult boosted = new RagResult(
                     result.getChunkId(),
                     result.getContent(),
@@ -624,23 +666,29 @@ public class RagService {
      * Keyword fallback when embeddings are unavailable.
      */
     private List<RagResult> keywordFallback(String query, List<KnowledgeChunk> chunks, int limit, boolean isBroadBusinessQuery) {
-        String[] terms = query.toLowerCase().split("\\s+");
+        List<String> terms = keywordTerms(query);
+        if (terms.isEmpty()) {
+            return Collections.emptyList();
+        }
 
         List<RagResult> scored = new ArrayList<>();
         for (KnowledgeChunk chunk : chunks) {
             if (chunk.getContent() == null || chunk.getContent().isBlank()) {
                 continue;
             }
-            String content = chunk.getContent().toLowerCase();
+            String haystack = chunk.getContent().toLowerCase(Locale.ROOT);
+            if (chunk.getSourceUrl() != null) {
+                haystack = haystack + " " + chunk.getSourceUrl().toLowerCase(Locale.ROOT);
+            }
             int matches = 0;
             for (String term : terms) {
-                if (!term.isBlank() && content.contains(term)) {
+                if (haystack.contains(term)) {
                     matches++;
                 }
             }
             if (matches > 0) {
                 // Normalize to a 0..1 pseudo-similarity for a consistent API shape.
-                double pseudo = (double) matches / terms.length;
+                double pseudo = (double) matches / terms.size();
                 scored.add(toResult(chunk, pseudo));
             }
         }
@@ -657,6 +705,68 @@ public class RagService {
         return rankAndTrim(scored, limit);
     }
 
+    private List<String> keywordTerms(String query) {
+        List<String> terms = new ArrayList<>();
+        for (String raw : query.toLowerCase(Locale.ROOT).split("\\s+")) {
+            String term = raw.replaceAll("[^a-z0-9]+", "");
+            if (term.length() < 3 || KEYWORD_STOPWORDS.contains(term)) {
+                continue;
+            }
+            terms.add(term);
+        }
+        return terms;
+    }
+
+    private List<RagResult> diversifyBySource(List<RagResult> scored, int limit) {
+        if (scored == null || scored.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<RagResult> sorted = new ArrayList<>(scored);
+        sorted.sort((a, b) -> Double.compare(
+                b.getSimilarity() == null ? 0.0 : b.getSimilarity(),
+                a.getSimilarity() == null ? 0.0 : a.getSimilarity()));
+
+        List<RagResult> diverse = new ArrayList<>();
+        Map<String, Integer> perSource = new LinkedHashMap<>();
+        int maxPerSource = 2;
+        for (RagResult result : sorted) {
+            String source = result.getSourceUrl() == null ? "" : result.getSourceUrl();
+            int used = perSource.getOrDefault(source, 0);
+            if (used >= maxPerSource) {
+                continue;
+            }
+            perSource.put(source, used + 1);
+            diverse.add(result);
+            if (diverse.size() >= limit) {
+                return diverse;
+            }
+        }
+        for (RagResult result : sorted) {
+            if (!diverse.contains(result)) {
+                diverse.add(result);
+                if (diverse.size() >= limit) {
+                    break;
+                }
+            }
+        }
+        return diverse;
+    }
+
+    private List<RagResult> mergeUnique(List<RagResult> primary, List<RagResult> extra) {
+        Map<String, RagResult> byId = new LinkedHashMap<>();
+        for (RagResult result : primary) {
+            if (result.getChunkId() != null) {
+                byId.put(result.getChunkId(), result);
+            }
+        }
+        for (RagResult result : extra) {
+            if (result.getChunkId() != null) {
+                byId.putIfAbsent(result.getChunkId(), result);
+            }
+        }
+        return new ArrayList<>(byId.values());
+    }
+
     private List<RagResult> rankAndTrim(List<RagResult> scored, int limit) {
         List<RagResult> results = new ArrayList<>();
         for (int i = 0; i < Math.min(limit, scored.size()); i++) {
@@ -665,6 +775,22 @@ public class RagService {
             results.add(r);
         }
         return results;
+    }
+
+    private double similarityToQuery(float[] queryEmbedding, KnowledgeChunk chunk) {
+        String stored = chunk.getEmbedding();
+        if (stored == null || stored.isBlank() || queryEmbedding == null) {
+            return 0.5;
+        }
+        try {
+            float[] chunkEmbedding = vectorStoreService.vectorStringToEmbedding(stored);
+            if (chunkEmbedding.length != queryEmbedding.length) {
+                return 0.5;
+            }
+            return vectorStoreService.cosineSimilarity(queryEmbedding, chunkEmbedding);
+        } catch (Exception e) {
+            return 0.5;
+        }
     }
 
     private RagResult toResult(KnowledgeChunk chunk, double similarity) {

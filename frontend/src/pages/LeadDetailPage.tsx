@@ -35,6 +35,7 @@ export default function LeadDetailPage() {
   const integrations = useIntegrations();
   const openaiReady = integrations.ready('OpenAI');
   const vapiReady = integrations.ready('Vapi');
+  const emailSendEnabled = integrations.loaded && integrations.ready('Resend');
 
   useEffect(() => {
     if (id) {
@@ -263,7 +264,7 @@ export default function LeadDetailPage() {
             <Sparkles size={16} className="text-slate" /> Follow-up Messages
           </h3>
           <p className="mb-4 text-sm text-slate">
-            Generate AI-powered follow-up messages for this lead. Messages require approval before use.
+            Generate follow-up drafts for this lead. Approve an email-style draft to send it through Resend.
           </p>
           {!openaiReady && (
             <p className="mb-3 text-sm text-ink">Follow-up generation requires OpenAI to be configured in Settings.</p>
@@ -325,7 +326,12 @@ export default function LeadDetailPage() {
             <h2 className="mb-4 text-lg font-semibold text-ink">Generated Follow-up Messages</h2>
             <div className="space-y-4">
               {followUpApprovals.map((approval) => (
-                <ApprovalCard key={approval.approvalId} approval={approval} onUpdate={handleApprovalUpdate} />
+                <ApprovalCard
+                  key={approval.approvalId}
+                  approval={approval}
+                  onUpdate={handleApprovalUpdate}
+                  emailSendEnabled={emailSendEnabled}
+                />
               ))}
             </div>
           </div>

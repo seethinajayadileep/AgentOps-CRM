@@ -17,12 +17,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.actuate.health.HealthEndpoint;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.sql.DataSource;
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,6 +45,10 @@ class SettingsServiceVoiceConfigTest {
     @Mock private FirecrawlClient firecrawlClient;
     @Mock private VapiClient vapiClient;
     @Mock private ApifyClient apifyClient;
+    @Mock private com.agentopscrm.client.ResendClient resendClient;
+    @Mock private com.agentopscrm.client.CalComClient calComClient;
+    @Mock private com.agentopscrm.client.TelegramClient telegramClient;
+    @Mock private com.agentopscrm.client.SlackWebhookClient slackWebhookClient;
     @Mock private EmbeddingService embeddingService;
     @Mock private BusinessRepository businessRepository;
     @Mock private DocumentRepository documentRepository;
@@ -58,7 +61,8 @@ class SettingsServiceVoiceConfigTest {
     @BeforeEach
     void setUp() {
         settingsService = new SettingsService(
-                dataSource, healthEndpoint, firecrawlClient, vapiClient, apifyClient,
+                dataSource, healthEndpoint, firecrawlClient, vapiClient, apifyClient, resendClient,
+                calComClient, telegramClient, slackWebhookClient,
                 embeddingService, businessRepository, documentRepository,
                 knowledgeChunkRepository, voiceCallRepository, agentLogRepository);
     }
@@ -75,10 +79,8 @@ class SettingsServiceVoiceConfigTest {
     private void stubHappyRepositories() {
         when(voiceCallRepository.count()).thenReturn(0L);
         when(voiceCallRepository.countByStatus(any(VoiceCallStatus.class))).thenReturn(0L);
-        when(voiceCallRepository.findByStatusOrderByCreatedAtDesc(
-            any(VoiceCallStatus.class),
-            any(Pageable.class)
-        )).thenReturn(Page.empty());
+        when(voiceCallRepository.findLatestCreatedAtByStatus(any(VoiceCallStatus.class)))
+                .thenReturn(Optional.empty());
     }
 
     @Test
@@ -154,6 +156,31 @@ class SettingsServiceVoiceConfigTest {
         // but assert the status message also does not embed secret material.
         assertFalse(response.getStatusMessage().contains("super-secret-key"));
         assertFalse(response.getStatusMessage().contains("webhook-secret-value"));
+    }
+
+    @Test
+    void getVoiceConfig_loadsLastCallTimesWithoutFetchingVoiceCallEntities() {
+        setVapiConfig(true, "sk-test-key", "assistant-123", "phone-456", "webhook-secret");
+        LocalDateTime lastSuccess = LocalDateTime.of(2026, 9, 4, 10, 0);
+        LocalDateTime lastFail = LocalDateTime.of(2026, 9, 3, 16, 30);
+        when(voiceCallRepository.count()).thenReturn(4L);
+        when(voiceCallRepository.countByStatus(VoiceCallStatus.COMPLETED)).thenReturn(3L);
+        when(voiceCallRepository.countByStatus(VoiceCallStatus.FAILED)).thenReturn(1L);
+        when(voiceCallRepository.findLatestCreatedAtByStatus(VoiceCallStatus.COMPLETED))
+                .thenReturn(Optional.of(lastSuccess));
+        when(voiceCallRepository.findLatestCreatedAtByStatus(VoiceCallStatus.FAILED))
+                .thenReturn(Optional.of(lastFail));
+
+        VoiceConfigResponse response = assertDoesNotThrow(() -> settingsService.getVoiceConfig());
+
+        assertTrue(response.isMetricsAvailable());
+        assertEquals(4L, response.getTotalCalls());
+        assertEquals(3L, response.getSuccessfulCalls());
+        assertEquals(1L, response.getFailedCalls());
+        assertEquals(lastSuccess.atZone(java.time.ZoneId.systemDefault()).toInstant(),
+                response.getLastSuccessfulCall());
+        assertEquals(lastFail.atZone(java.time.ZoneId.systemDefault()).toInstant(),
+                response.getLastFailedCall());
     }
 
     @Test

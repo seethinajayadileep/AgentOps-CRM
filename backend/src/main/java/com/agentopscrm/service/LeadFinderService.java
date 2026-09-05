@@ -19,6 +19,7 @@ import com.agentopscrm.repository.BusinessRepository;
 import com.agentopscrm.repository.DiscoveredLeadRepository;
 import com.agentopscrm.repository.LeadRepository;
 import com.agentopscrm.repository.LeadSourceRunRepository;
+import com.agentopscrm.util.LeadLocation;
 import com.agentopscrm.util.SafeErrorMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,6 +90,7 @@ public class LeadFinderService {
     private final BusinessRepository businessRepository;
     private final AgentLogRepository agentLogRepository;
     private final ApifyClient apifyClient;
+    private final LeadNotificationService leadNotificationService;
 
     public LeadFinderService(
         LeadSourceRunRepository runRepository,
@@ -97,6 +99,7 @@ public class LeadFinderService {
         BusinessRepository businessRepository,
         AgentLogRepository agentLogRepository,
         ApifyClient apifyClient,
+        LeadNotificationService leadNotificationService,
         @org.springframework.beans.factory.annotation.Value("${apify.stale-run-timeout-minutes:30}") long staleRunTimeoutMinutes
     ) {
         this.runRepository = runRepository;
@@ -105,6 +108,7 @@ public class LeadFinderService {
         this.businessRepository = businessRepository;
         this.agentLogRepository = agentLogRepository;
         this.apifyClient = apifyClient;
+        this.leadNotificationService = leadNotificationService;
         this.staleRunTimeoutMinutes = staleRunTimeoutMinutes;
     }
 
@@ -338,6 +342,7 @@ public class LeadFinderService {
         logAction(ACTION_LEAD_IMPORTED, AgentActionStatus.SUCCESS,
             "Imported discovered lead " + dl.getId() + " as CRM lead " + lead.getId(), null);
         logger.info("Imported discovered lead {} as CRM lead {}", dl.getId(), lead.getId());
+        leadNotificationService.scheduleFreshLeadNotice(lead, "LEAD_FINDER");
 
         return mapDiscovered(dl);
     }
@@ -646,7 +651,7 @@ public class LeadFinderService {
         r.setContactName(dl.getContactName());
         r.setEmail(dl.getEmail());
         r.setPhone(dl.getPhone());
-        r.setLocation(dl.getLocation());
+        r.setLocation(LeadLocation.display(dl.getLocation(), dl.getRawDataJson()));
         r.setIndustry(dl.getIndustry());
         r.setSourceUrl(dl.getSourceUrl());
         r.setRawDataJson(dl.getRawDataJson());

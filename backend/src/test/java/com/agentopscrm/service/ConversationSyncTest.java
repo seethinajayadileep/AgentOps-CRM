@@ -27,6 +27,8 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -56,13 +58,16 @@ class ConversationSyncTest {
     @Mock
     private ObjectMapper objectMapper;
 
+    @Mock
+    private LeadNotificationService leadNotificationService;
+
     private LeadQualificationService service;
 
     @BeforeEach
     void setUp() {
         service = new LeadQualificationService(
             agent, leadRepository, businessRepository, conversationRepository,
-            agentLogRepository, objectMapper
+            agentLogRepository, objectMapper, leadNotificationService
         );
     }
 
@@ -123,6 +128,7 @@ class ConversationSyncTest {
             "Conversation should be updated with lead name");
         assertEquals("retest-qa@example.com", savedConversation.getCustomerEmail(),
             "Conversation should be updated with lead email");
+        verify(leadNotificationService).scheduleFreshLeadNotice(any(Lead.class), eq("INBOUND"));
     }
 
     @Test

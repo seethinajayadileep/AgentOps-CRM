@@ -107,9 +107,29 @@ vapi:
   webhook-secret: ${VAPI_WEBHOOK_SECRET:}
   enabled: ${VAPI_ENABLED:false}
 
+# Resend — send approved email follow-ups.
+resend:
+  api-key: ${RESEND_API_KEY:}
+  from: ${RESEND_FROM:}
+
+# Cal.com — booking URL appended to fresh-lead Telegram/Slack alerts.
+calcom:
+  api-key: ${CALCOM_API_KEY:}
+  booking-url: ${CALCOM_BOOKING_URL:}
+
+# Telegram — ping a chat when a CRM lead is first created.
+telegram:
+  bot-token: ${TELEGRAM_BOT_TOKEN:}
+  chat-id: ${TELEGRAM_CHAT_ID:}
+
+# Slack incoming webhook — ping a channel when a CRM lead is first created.
+slack:
+  webhook-url: ${SLACK_WEBHOOK_URL:}
+
 # Application Public URL (used for webhook URLs, etc.)
 app:
   public-base-url: ${PUBLIC_BACKEND_URL:http://localhost:8080}
+  frontend-base-url: ${PUBLIC_FRONTEND_URL:http://localhost:5173}
   security:
     enabled: ${APP_SECURITY_ENABLED:true}
   showcase:
